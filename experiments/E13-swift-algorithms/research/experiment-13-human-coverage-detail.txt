@@ -1,0 +1,324 @@
+    1|       |//===----------------------------------------------------------------------===//
+    2|       |//
+    3|       |// This source file is part of the Swift Algorithms open source project
+    4|       |//
+    5|       |// Copyright (c) 2021 Apple Inc. and the Swift project authors
+    6|       |// Licensed under Apache License v2.0 with Runtime Library Exception
+    7|       |//
+    8|       |// See https://swift.org/LICENSE.txt for license information
+    9|       |//
+   10|       |//===----------------------------------------------------------------------===//
+   11|       |
+   12|       |extension Sequence {
+   13|       |  /// Returns a sequence of overlapping adjacent pairs of the elements of this
+   14|       |  /// sequence.
+   15|       |  ///
+   16|       |  /// In the `AdjacentPairsSequence` returned by this method, the elements of
+   17|       |  /// the *i*th pair are the *i*th and *(i+1)*th elements of the underlying
+   18|       |  /// sequence. The following example uses the `adjacentPairs()` method to
+   19|       |  /// iterate over adjacent pairs of integers:
+   20|       |  ///
+   21|       |  ///     for pair in (1...).prefix(5).adjacentPairs() {
+   22|       |  ///         print(pair)
+   23|       |  ///     }
+   24|       |  ///     // Prints "(1, 2)"
+   25|       |  ///     // Prints "(2, 3)"
+   26|       |  ///     // Prints "(3, 4)"
+   27|       |  ///     // Prints "(4, 5)"
+   28|       |  ///
+   29|       |  /// The resulting sequence is empty when called on an empty or single-element
+   30|       |  /// sequence.
+   31|       |  ///
+   32|       |  /// - Complexity: O(1)
+   33|       |  @inlinable
+   34|    102|  public func adjacentPairs() -> AdjacentPairsSequence<Self> {
+   35|    102|    AdjacentPairsSequence(base: self)
+   36|    102|  }
+   37|       |}
+   38|       |
+   39|       |extension Collection {
+   40|       |  /// Returns a collection of overlapping adjacent pairs of the elements of this
+   41|       |  /// collection.
+   42|       |  ///
+   43|       |  /// In an `AdjacentPairsCollection`, the elements of the *i*th pair are the
+   44|       |  /// *i*th and *(i+1)*th elements of the underlying sequence. The following
+   45|       |  /// example uses the `adjacentPairs()` method to iterate over adjacent pairs
+   46|       |  /// of integers:
+   47|       |  ///
+   48|       |  ///     for pair in (1...5).adjacentPairs() {
+   49|       |  ///         print(pair)
+   50|       |  ///     }
+   51|       |  ///     // Prints "(1, 2)"
+   52|       |  ///     // Prints "(2, 3)"
+   53|       |  ///     // Prints "(3, 4)"
+   54|       |  ///     // Prints "(4, 5)"
+   55|       |  ///
+   56|       |  /// The resulting collection is empty when called on an empty or
+   57|       |  /// single-element collection.
+   58|       |  ///
+   59|       |  /// - Complexity: O(1)
+   60|       |  @inlinable
+   61|    106|  public func adjacentPairs() -> AdjacentPairsCollection<Self> {
+   62|    106|    AdjacentPairsCollection(base: self)
+   63|    106|  }
+   64|       |}
+   65|       |
+   66|       |/// A sequence of adjacent pairs of elements built from an underlying sequence.
+   67|       |///
+   68|       |/// Use the `adjacentPairs()` method on a sequence to create an
+   69|       |/// `AdjacentPairsSequence` instance.
+   70|       |public struct AdjacentPairsSequence<Base: Sequence> {
+   71|       |  @usableFromInline
+   72|       |  internal let base: Base
+   73|       |
+   74|       |  /// Creates an instance that makes pairs of adjacent elements from `base`.
+   75|       |  @inlinable
+   76|    102|  internal init(base: Base) {
+   77|    102|    self.base = base
+   78|    102|  }
+   79|       |}
+   80|       |
+   81|       |extension AdjacentPairsSequence {
+   82|       |  /// The iterator for an `AdjacentPairsSequence` or `AdjacentPairsCollection`
+   83|       |  /// instance.
+   84|       |  public struct Iterator {
+   85|       |    @usableFromInline
+   86|       |    internal var base: Base.Iterator
+   87|       |
+   88|       |    @usableFromInline
+   89|       |    internal var previousElement: Base.Element?
+   90|       |
+   91|       |    @inlinable
+   92|    101|    internal init(base: Base.Iterator) {
+   93|    101|      self.base = base
+   94|    101|    }
+   95|       |  }
+   96|       |}
+   97|       |
+   98|       |extension AdjacentPairsSequence.Iterator: IteratorProtocol {
+   99|       |  public typealias Element = (Base.Element, Base.Element)
+  100|       |
+  101|       |  @inlinable
+  102|  5.05k|  public mutating func next() -> Element? {
+  103|  5.05k|    if previousElement == nil {
+  104|    101|      previousElement = base.next()
+  105|    101|    }
+  106|  5.05k|
+  107|  5.05k|    guard let previous = previousElement, let next = base.next() else {
+  108|    101|      return nil
+  109|  4.95k|    }
+  110|  4.95k|
+  111|  4.95k|    previousElement = next
+  112|  4.95k|    return (previous, next)
+  113|  5.05k|  }
+  114|       |}
+  115|       |
+  116|       |extension AdjacentPairsSequence: Sequence {
+  117|       |  @inlinable
+  118|    101|  public func makeIterator() -> Iterator {
+  119|    101|    Iterator(base: base.makeIterator())
+  120|    101|  }
+  121|       |
+  122|       |  @inlinable
+  123|      0|  public var underestimatedCount: Int {
+  124|      0|    Swift.max(0, base.underestimatedCount - 1)
+  125|      0|  }
+  126|       |}
+  127|       |
+  128|       |extension AdjacentPairsSequence: LazySequenceProtocol
+  129|       |where Base: LazySequenceProtocol {}
+  130|       |
+  131|       |/// A collection of adjacent pairs of elements built from an underlying
+  132|       |/// collection.
+  133|       |///
+  134|       |/// Use the `adjacentPairs()` method on a collection to create an
+  135|       |/// `AdjacentPairsCollection` instance.
+  136|       |public struct AdjacentPairsCollection<Base: Collection> {
+  137|       |  @usableFromInline
+  138|       |  internal let base: Base
+  139|       |
+  140|       |  @usableFromInline
+  141|       |  internal let secondBaseIndex: Base.Index
+  142|       |
+  143|       |  @inlinable
+  144|    106|  internal init(base: Base) {
+  145|    106|    self.base = base
+  146|    106|    self.secondBaseIndex =
+  147|    106|      base.isEmpty
+  148|    106|      ? base.endIndex
+  149|    106|      : base.index(after: base.startIndex)
+  150|    106|  }
+  151|       |}
+  152|       |
+  153|       |extension AdjacentPairsCollection {
+  154|       |  /// A position in an `AdjacentPairsCollection` instance.
+  155|       |  public struct Index: Comparable {
+  156|       |    @usableFromInline
+  157|       |    internal var first: Base.Index
+  158|       |
+  159|       |    @usableFromInline
+  160|       |    internal var second: Base.Index
+  161|       |
+  162|       |    @inlinable
+  163|  15.3k|    internal init(first: Base.Index, second: Base.Index) {
+  164|  15.3k|      self.first = first
+  165|  15.3k|      self.second = second
+  166|  15.3k|    }
+  167|       |
+  168|       |    @inlinable
+  169|  10.4k|    public static func == (lhs: Index, rhs: Index) -> Bool {
+  170|  10.4k|      lhs.first == rhs.first
+  171|  10.4k|    }
+  172|       |
+  173|       |    @inlinable
+  174|    312|    public static func < (lhs: Index, rhs: Index) -> Bool {
+  175|    312|      lhs.first < rhs.first
+  176|    312|    }
+  177|       |  }
+  178|       |}
+  179|       |
+  180|       |extension AdjacentPairsCollection: Collection {
+  181|       |  @inlinable
+  182|    153|  public var startIndex: Index {
+  183|    153|    Index(
+  184|    153|      first: secondBaseIndex == base.endIndex ? base.endIndex : base.startIndex,
+  185|    153|      second: secondBaseIndex)
+  186|    153|  }
+  187|       |
+  188|       |  @inlinable
+  189|  10.2k|  public var endIndex: Index {
+  190|  10.2k|    Index(first: base.endIndex, second: base.endIndex)
+  191|  10.2k|  }
+  192|       |
+  193|       |  @inlinable
+  194|  4.95k|  public subscript(position: Index) -> (Base.Element, Base.Element) {
+  195|  4.95k|    (base[position.first], base[position.second])
+  196|  4.95k|  }
+  197|       |
+  198|       |  @inlinable
+  199|  4.96k|  public func index(after i: Index) -> Index {
+  200|  4.96k|    precondition(i != endIndex, "Can't advance beyond endIndex")
+  201|  4.96k|    let next = base.index(after: i.second)
+  202|  4.96k|    return next == base.endIndex
+  203|  4.96k|      ? endIndex
+  204|  4.96k|      : Index(first: i.second, second: next)
+  205|  4.96k|  }
+  206|       |
+  207|       |  @inlinable
+  208|     31|  public func index(_ i: Index, offsetBy distance: Int) -> Index {
+  209|     31|    guard distance != 0 else { return i }
+  210|     22|
+  211|     22|    guard
+  212|     22|      let result = distance > 0
+  213|     22|        ? offsetForward(i, by: distance, limitedBy: endIndex)
+  214|     22|        : offsetBackward(i, by: -distance, limitedBy: startIndex)
+  215|     22|    else { fatalError("Index out of bounds") }
+  216|     22|    return result
+  217|     31|  }
+  218|       |
+  219|       |  @inlinable
+  220|       |  public func index(
+  221|       |    _ i: Index,
+  222|       |    offsetBy distance: Int,
+  223|       |    limitedBy limit: Index
+  224|    206|  ) -> Index? {
+  225|    206|    guard distance != 0 else { return i }
+  226|    144|    guard limit != i else { return nil }
+  227|    104|
+  228|    104|    if distance > 0 {
+  229|     52|      let limit = limit > i ? limit : endIndex
+  230|     52|      return offsetForward(i, by: distance, limitedBy: limit)
+  231|     52|    } else {
+  232|     52|      let limit = limit < i ? limit : startIndex
+  233|     52|      return offsetBackward(i, by: -distance, limitedBy: limit)
+  234|     52|    }
+  235|    104|  }
+  236|       |
+  237|       |  @inlinable
+  238|       |  internal func offsetForward(
+  239|       |    _ i: Index,
+  240|       |    by distance: Int,
+  241|       |    limitedBy limit: Index
+  242|     63|  ) -> Index? {
+  243|     63|    assert(distance > 0)
+  244|     63|    assert(limit > i)
+  245|     63|
+  246|     63|    let newFirst = base.index(
+  247|     63|      i.second,
+  248|     63|      offsetBy: distance - 1,
+  249|     63|      limitedBy: limit.first)
+  250|     63|    guard let newFirst, newFirst != base.endIndex
+  251|     63|    else { return nil }
+  252|     42|
+  253|     42|    let newSecond = base.index(after: newFirst)
+  254|     42|
+  255|     42|    precondition(newSecond <= base.endIndex, "Can't advance beyond endIndex")
+  256|     42|    return newSecond == base.endIndex
+  257|     42|      ? endIndex
+  258|     42|      : Index(first: newFirst, second: newSecond)
+  259|     63|  }
+  260|       |
+  261|       |  @inlinable
+  262|       |  internal func offsetBackward(
+  263|       |    _ i: Index,
+  264|       |    by distance: Int,
+  265|       |    limitedBy limit: Index
+  266|     63|  ) -> Index? {
+  267|     63|    assert(distance > 0)
+  268|     63|    assert(limit < i)
+  269|     63|
+  270|     63|    let offset = i == endIndex ? 0 : 1
+  271|     63|    let newSecond = base.index(
+  272|     63|      i.first,
+  273|     63|      offsetBy: -(distance - offset),
+  274|     63|      limitedBy: limit.second)
+  275|     63|    guard let newSecond
+  276|     63|    else { return nil }
+  277|     42|
+  278|     42|    let newFirst = base.index(newSecond, offsetBy: -1)
+  279|     42|    precondition(newFirst >= base.startIndex, "Can't move before startIndex")
+  280|     42|    return Index(first: newFirst, second: newSecond)
+  281|     63|  }
+  282|       |
+  283|       |  @inlinable
+  284|     43|  public func distance(from start: Index, to end: Index) -> Int {
+  285|     43|    // While there's a 2-step gap between the `first` base index values in
+  286|     43|    // `endIndex` and the penultimate index of this collection, the `second`
+  287|     43|    // base index values are consistently one step apart throughout the
+  288|     43|    // entire collection.
+  289|     43|    base.distance(from: start.second, to: end.second)
+  290|     43|  }
+  291|       |
+  292|       |  @inlinable
+  293|      4|  public var count: Int {
+  294|      4|    Swift.max(0, base.count - 1)
+  295|      4|  }
+  296|       |}
+  297|       |
+  298|       |extension AdjacentPairsCollection: BidirectionalCollection
+  299|       |where Base: BidirectionalCollection {
+  300|       |  @inlinable
+  301|      5|  public func index(before i: Index) -> Index {
+  302|      5|    precondition(i != startIndex, "Can't offset before startIndex")
+  303|      5|    let second =
+  304|      5|      i == endIndex
+  305|      5|      ? base.index(before: base.endIndex)
+  306|      5|      : i.first
+  307|      5|    let first = base.index(before: second)
+  308|      5|    return Index(first: first, second: second)
+  309|      5|  }
+  310|       |}
+  311|       |
+  312|       |extension AdjacentPairsCollection: RandomAccessCollection
+  313|       |where Base: RandomAccessCollection {}
+  314|       |
+  315|       |extension AdjacentPairsCollection: LazySequenceProtocol, LazyCollectionProtocol
+  316|       |where Base: LazySequenceProtocol {}
+  317|       |
+  318|       |extension AdjacentPairsCollection.Index: Hashable where Base.Index: Hashable {
+  319|       |  @inlinable
+  320|      0|  public func hash(into hasher: inout Hasher) {
+  321|      0|    hasher.combine(first)
+  322|      0|  }
+  323|       |}
+

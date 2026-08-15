@@ -1,0 +1,237 @@
+    1|       |/// Customizes `assertSnapshot` for the duration of an operation.
+    2|       |///
+    3|       |/// Use this operation to customize how the `assertSnapshot` function behaves in a test. It is most
+    4|       |/// convenient to use in the context of XCTest where you can wrap `invokeTest` of an `XCTestCase`
+    5|       |/// subclass so that the configuration applies to every test method.
+    6|       |///
+    7|       |/// > Note: To customize tests when using Swift's native Testing library, use the
+    8|       |/// > ``Testing/Trait/snapshots(diffTool:record:)`` trait.
+    9|       |///
+   10|       |/// For example, to specify to put an entire test class in record mode you do the following:
+   11|       |///
+   12|       |/// ```swift
+   13|       |/// class FeatureTests: XCTestCase {
+   14|       |///   override func invokeTest() {
+   15|       |///     withSnapshotTesting(record: .all) {
+   16|       |///       super.invokeTest()
+   17|       |///     }
+   18|       |///   }
+   19|       |/// }
+   20|       |/// ```
+   21|       |///
+   22|       |/// - Parameters:
+   23|       |///   - record: The record mode to use while asserting snapshots.
+   24|       |///   - diffTool: The diff tool to use while asserting snapshots.
+   25|       |///   - operation: The operation to perform.
+   26|       |public func withSnapshotTesting<R>(
+   27|       |  record: SnapshotTestingConfiguration.Record? = nil,
+   28|       |  diffTool: SnapshotTestingConfiguration.DiffTool? = nil,
+   29|       |  operation: () throws -> R
+   30|     26|) rethrows -> R {
+   31|     26|  try SnapshotTestingConfiguration.$current.withValue(
+   32|     26|    SnapshotTestingConfiguration(
+   33|     26|      record: record ?? SnapshotTestingConfiguration.current?.record ?? _record,
+   34|     26|      diffTool: diffTool ?? SnapshotTestingConfiguration.current?.diffTool
+   35|     17|        ?? SnapshotTesting._diffTool
+   36|     26|    )
+   37|     26|  ) {
+   38|     26|    try operation()
+   39|     26|  }
+   40|     26|}
+   41|       |
+   42|       |/// Customizes `assertSnapshot` for the duration of an asynchronous operation.
+   43|       |///
+   44|       |/// See ``withSnapshotTesting(record:diffTool:operation:)-2kuyr`` for more information.
+   45|       |public func withSnapshotTesting<R>(
+   46|       |  record: SnapshotTestingConfiguration.Record? = nil,
+   47|       |  diffTool: SnapshotTestingConfiguration.DiffTool? = nil,
+   48|       |  operation: () async throws -> R
+   49|      0|) async rethrows -> R {
+   50|      0|  try await SnapshotTestingConfiguration.$current.withValue(
+   51|      0|    SnapshotTestingConfiguration(
+   52|      0|      record: record ?? SnapshotTestingConfiguration.current?.record ?? _record,
+   53|      0|      diffTool: diffTool ?? SnapshotTestingConfiguration.current?.diffTool ?? _diffTool
+   54|      0|    )
+   55|      0|  ) {
+   56|      0|    try await operation()
+   57|      0|  }
+   58|      0|}
+   59|       |
+   60|       |/// The configuration for a snapshot test.
+   61|       |public struct SnapshotTestingConfiguration: Sendable {
+   62|       |  @_spi(Internals)
+   63|       |  @TaskLocal public static var current: Self?
+   64|       |
+   65|       |  /// The diff tool use to print helpful test failure messages.
+   66|       |  ///
+   67|       |  /// See ``DiffTool-swift.struct`` for more information.
+   68|       |  public var diffTool: DiffTool?
+   69|       |
+   70|       |  /// The recording strategy to use while running snapshot tests.
+   71|       |  ///
+   72|       |  /// See ``Record-swift.struct`` for more information.
+   73|       |  public var record: Record?
+   74|       |
+   75|       |  public init(
+   76|       |    record: Record?,
+   77|       |    diffTool: DiffTool?
+   78|     36|  ) {
+   79|     36|    self.diffTool = diffTool
+   80|     36|    self.record = record
+   81|     36|  }
+   82|       |
+   83|       |  /// The record mode of the snapshot test.
+   84|       |  ///
+   85|       |  /// There are 4 primary strategies for recording: ``Record-swift.struct/all``,
+   86|       |  /// ``Record-swift.struct/missing``, ``Record-swift.struct/never`` and
+   87|       |  /// ``Record-swift.struct/failed``
+   88|       |  public struct Record: Equatable, Sendable {
+   89|       |    private let storage: Storage
+   90|       |
+   91|      0|    public init?(rawValue: String) {
+   92|      0|      switch rawValue {
+   93|      0|      case "all":
+   94|      0|        self.storage = .all
+   95|      0|      case "failed":
+   96|      0|        self.storage = .failed
+   97|      0|      case "missing":
+   98|      0|        self.storage = .missing
+   99|      0|      case "never":
+  100|      0|        self.storage = .never
+  101|      0|      default:
+  102|      0|        return nil
+  103|      0|      }
+  104|      0|    }
+  105|       |
+  106|       |    /// Records all snapshots to disk, no matter what.
+  107|       |    public static let all = Self(storage: .all)
+  108|       |
+  109|       |    /// Records snapshots for assertions that fail. This can be useful for tests that use precision
+  110|       |    /// thresholds so that passing tests do not re-record snapshots that are subtly different but
+  111|       |    /// still within the threshold.
+  112|       |    public static let failed = Self(storage: .failed)
+  113|       |
+  114|       |    /// Records only the snapshots that are missing from disk.
+  115|       |    public static let missing = Self(storage: .missing)
+  116|       |
+  117|       |    /// Does not record any snapshots. If a snapshot is missing a test failure will be raised. This
+  118|       |    /// option is appropriate when running tests on CI so that re-tries of tests do not
+  119|       |    /// surprisingly pass after snapshots are unexpectedly generated.
+  120|       |    public static let never = Self(storage: .never)
+  121|       |
+  122|      7|    private init(storage: Storage) {
+  123|      7|      self.storage = storage
+  124|      7|    }
+  125|       |
+  126|       |    private enum Storage: Equatable, Sendable {
+  127|       |      case all
+  128|       |      case failed
+  129|       |      case missing
+  130|       |      case never
+  131|       |    }
+  132|       |  }
+  133|       |
+  134|       |  /// Describes the diff command used to diff two files on disk.
+  135|       |  ///
+  136|       |  /// This type can be created with a closure that takes two arguments: the first argument is
+  137|       |  /// is a file path to the currently recorded snapshot on disk, and the second argument is the
+  138|       |  /// file path to a _failed_ snapshot that was recorded to a temporary location on disk. You can
+  139|       |  /// use these two file paths to construct a command that can be used to compare the two files.
+  140|       |  ///
+  141|       |  /// For example, to use ImageMagick's `compare` tool and pipe the result into Preview.app, you
+  142|       |  /// could create the following `DiffTool`:
+  143|       |  ///
+  144|       |  /// ```swift
+  145|       |  /// extension SnapshotTestingConfiguration.DiffTool {
+  146|       |  ///   static let compare = Self {
+  147|       |  ///     "compare \"\($0)\" \"\($1)\" png: | open -f -a Preview.app"
+  148|       |  ///   }
+  149|       |  /// }
+  150|       |  /// ```
+  151|       |  ///
+  152|       |  /// `DiffTool` also comes with two values: ``DiffTool-swift.struct/ksdiff`` for printing a
+  153|       |  /// command for opening [Kaleidoscope](https://kaleidoscope.app), and
+  154|       |  /// ``DiffTool-swift.struct/default`` for simply printing the two URLs to the test failure
+  155|       |  /// message.
+  156|       |  public struct DiffTool: Sendable, ExpressibleByStringLiteral {
+  157|       |    var tool: @Sendable (_ currentFilePath: String, _ failedFilePath: String) -> String
+  158|       |
+  159|       |    public init(
+  160|       |      _ tool: @escaping @Sendable (_ currentFilePath: String, _ failedFilePath: String) -> String
+  161|      3|    ) {
+  162|      3|      self.tool = tool
+  163|      3|    }
+  164|       |
+  165|      5|    public init(stringLiteral value: StringLiteralType) {
+  166|      5|      self.tool = { "\(value) \($0) \($1)" }
+  167|      5|    }
+  168|       |
+  169|       |    /// The [Kaleidoscope](http://kaleidoscope.app) diff tool.
+  170|      2|    public static let ksdiff = Self {
+  171|      2|      "ksdiff \"\($0)\" \"\($1)\""
+  172|      2|    }
+  173|       |
+  174|       |    /// The default diff tool.
+  175|      1|    public static let `default` = Self {
+  176|      1|      """
+  177|      1|      @\(minus)
+  178|      1|      "file://\($0)"
+  179|      1|      @\(plus)
+  180|      1|      "file://\($1)"
+  181|      1|
+  182|      1|      To configure output for a custom diff tool, use 'withSnapshotTesting'. For example:
+  183|      1|
+  184|      1|          withSnapshotTesting(diffTool: .ksdiff) {
+  185|      1|            // ...
+  186|      1|          }
+  187|      1|      """
+  188|      1|    }
+  189|      4|    public func callAsFunction(currentFilePath: String, failedFilePath: String) -> String {
+  190|      4|      self.tool(currentFilePath, failedFilePath)
+  191|      4|    }
+  192|       |  }
+  193|       |}
+  194|       |
+  195|       |@available(
+  196|       |  iOS,
+  197|       |  deprecated: 9999,
+  198|       |  message: "Use '.all' instead of 'true', and '.missing' instead of 'false'."
+  199|       |)
+  200|       |@available(
+  201|       |  macOS,
+  202|       |  deprecated: 9999,
+  203|       |  message: "Use '.all' instead of 'true', and '.missing' instead of 'false'."
+  204|       |)
+  205|       |@available(
+  206|       |  tvOS,
+  207|       |  deprecated: 9999,
+  208|       |  message: "Use '.all' instead of 'true', and '.missing' instead of 'false'."
+  209|       |)
+  210|       |@available(
+  211|       |  watchOS,
+  212|       |  deprecated: 9999,
+  213|       |  message: "Use '.all' instead of 'true', and '.missing' instead of 'false'."
+  214|       |)
+  215|       |@available(
+  216|       |  visionOS,
+  217|       |  deprecated: 9999,
+  218|       |  message: "Use '.all' instead of 'true', and '.missing' instead of 'false'."
+  219|       |)
+  220|       |extension SnapshotTestingConfiguration.Record: ExpressibleByBooleanLiteral {
+  221|      0|  public init(booleanLiteral value: BooleanLiteralType) {
+  222|      0|    self = value ? .all : .missing
+  223|      0|  }
+  224|       |}
+  225|       |
+  226|       |@available(
+  227|       |  *,
+  228|       |  deprecated,
+  229|       |  renamed: "SnapshotTestingConfiguration.DiffTool.default",
+  230|       |  message: "Use '.default' instead of a 'nil' value for 'diffTool'."
+  231|       |)
+  232|       |extension SnapshotTestingConfiguration.DiffTool: ExpressibleByNilLiteral {
+  233|      0|  public init(nilLiteral: ()) {
+  234|      0|    self = .default
+  235|      0|  }
+  236|       |}
+

@@ -1,0 +1,254 @@
+    1|       |/// A custom parameter attribute that constructs parsers from closures. The constructed parser
+    2|       |/// runs each parser in the closure, one after another, till one succeeds with an output.
+    3|       |///
+    4|       |/// The ``OneOf`` parser acts as an entry point into `@OneOfBuilder` syntax where you can list
+    5|       |/// all of the parsers you want to try. For example, to parse a currency symbol into an enum
+    6|       |/// of supported currencies:
+    7|       |///
+    8|       |/// ```swift
+    9|       |/// enum Currency { case eur, gbp, usd }
+   10|       |/// let currency = OneOf {
+   11|       |///   "€".map { Currency.eur }
+   12|       |///   "£".map { Currency.gbp }
+   13|       |///   "$".map { Currency.usd }
+   14|       |/// }
+   15|       |/// let money = Parse { currency; Digits() }
+   16|       |///
+   17|       |/// try money.parse("$100") // (.usd, 100)
+   18|       |/// ```
+   19|       |@resultBuilder
+   20|       |public enum OneOfBuilder<Input, Output> {
+   21|       |  /// Provides support for `for`-`in` loops in ``OneOfBuilder`` blocks.
+   22|       |  ///
+   23|       |  /// Useful for building up a parser from a dynamic source, like for a case-iterable enum:
+   24|       |  ///
+   25|       |  /// ```swift
+   26|       |  /// enum Role: String, CaseIterable {
+   27|       |  ///   case admin
+   28|       |  ///   case guest
+   29|       |  ///   case member
+   30|       |  /// }
+   31|       |  ///
+   32|       |  /// let roleParser = OneOf {
+   33|       |  ///   for role in Role.allCases {
+   34|       |  ///     role.rawValue.map { role }
+   35|       |  ///   }
+   36|       |  /// }
+   37|       |  /// ```
+   38|       |  @inlinable
+   39|       |  public static func buildArray<P>(_ parsers: [P]) -> Parsers.OneOfMany<P>
+   40|      1|  where P.Input == Input, P.Output == Output {
+   41|      1|    .init(parsers)
+   42|      1|  }
+   43|       |
+   44|       |  @inlinable
+   45|      1|  static public func buildBlock() -> Fail<Input, Output> {
+   46|      1|    Fail()
+   47|      1|  }
+   48|       |
+   49|       |  /// Provides support for specifying a parser in ``OneOfBuilder`` blocks.
+   50|       |  @inlinable
+   51|       |  static public func buildBlock<P: Parser>(_ parser: P) -> P
+   52|      0|  where P.Input == Input, P.Output == Output {
+   53|      0|    parser
+   54|      0|  }
+   55|       |
+   56|       |  /// Provides support for `if`-`else` statements in ``OneOfBuilder`` blocks, producing a
+   57|       |  /// conditional parser for the `if` branch.
+   58|       |  ///
+   59|       |  /// ```swift
+   60|       |  /// OneOf {
+   61|       |  ///   if useLegacyParser {
+   62|       |  ///     LegacyParser()
+   63|       |  ///   } else {
+   64|       |  ///     NewParser()
+   65|       |  ///   }
+   66|       |  /// }
+   67|       |  /// ```
+   68|       |  @inlinable
+   69|       |  public static func buildEither<TrueParser, FalseParser>(
+   70|       |    first parser: TrueParser
+   71|       |  ) -> Parsers.Conditional<TrueParser, FalseParser>
+   72|       |  where
+   73|       |    TrueParser.Input == Input,
+   74|       |    TrueParser.Output == Output,
+   75|       |    FalseParser.Input == Input,
+   76|       |    FalseParser.Output == Output
+   77|      1|  {
+   78|      1|    .first(parser)
+   79|      1|  }
+   80|       |
+   81|       |  /// Provides support for `if`-`else` statements in ``OneOfBuilder`` blocks, producing a
+   82|       |  /// conditional parser for the `if` branch.
+   83|       |  ///
+   84|       |  /// ```swift
+   85|       |  /// OneOf {
+   86|       |  ///   if useLegacyParser {
+   87|       |  ///     LegacyParser()
+   88|       |  ///   } else {
+   89|       |  ///     NewParser()
+   90|       |  ///   }
+   91|       |  /// }
+   92|       |  /// ```
+   93|       |  @inlinable
+   94|       |  public static func buildEither<TrueParser, FalseParser>(
+   95|       |    second parser: FalseParser
+   96|       |  ) -> Parsers.Conditional<TrueParser, FalseParser>
+   97|       |  where
+   98|       |    TrueParser.Input == Input,
+   99|       |    TrueParser.Output == Output,
+  100|       |    FalseParser.Input == Input,
+  101|       |    FalseParser.Output == Output
+  102|      1|  {
+  103|      1|    .second(parser)
+  104|      1|  }
+  105|       |
+  106|       |  @inlinable
+  107|       |  public static func buildExpression<P: Parser>(_ parser: P) -> P
+  108|     31|  where P.Input == Input, P.Output == Output {
+  109|     31|    parser
+  110|     31|  }
+  111|       |
+  112|       |  /// Provides support for `if` statements in ``OneOfBuilder`` blocks, producing an optional parser.
+  113|       |  ///
+  114|       |  /// ```swift
+  115|       |  /// let whitespace = OneOf {
+  116|       |  ///   if shouldParseNewlines {
+  117|       |  ///     "\r\n"
+  118|       |  ///     "\r"
+  119|       |  ///     "\n"
+  120|       |  ///   }
+  121|       |  ///
+  122|       |  ///   " "
+  123|       |  ///   "\t"
+  124|       |  /// }
+  125|       |  /// ```
+  126|       |  @inlinable
+  127|      5|  public static func buildIf<P>(_ parser: P?) -> OptionalOneOf<P> where P.Input == Input {
+  128|      5|    .init(wrapped: parser)
+  129|      5|  }
+  130|       |
+  131|       |  /// Provides support for `if #available` statements in ``OneOfBuilder`` blocks, producing an
+  132|       |  /// optional parser.
+  133|       |  @inlinable
+  134|       |  public static func buildLimitedAvailability<P>(_ parser: P?) -> OptionalOneOf<P>
+  135|      0|  where P.Input == Input, P.Output == Output {
+  136|      0|    .init(wrapped: parser)
+  137|      0|  }
+  138|       |
+  139|       |  @inlinable
+  140|       |  public static func buildPartialBlock<P: Parser>(first: P) -> P
+  141|     24|  where P.Input == Input, P.Output == Output {
+  142|     24|    first
+  143|     24|  }
+  144|       |
+  145|       |  @inlinable
+  146|       |  public static func buildPartialBlock<P0, P1>(accumulated: P0, next: P1) -> OneOf2<P0, P1>
+  147|     15|  where P0.Input == Input, P0.Output == Output, P1.Input == Input, P1.Output == Output {
+  148|     15|    .init(accumulated, next)
+  149|     15|  }
+  150|       |
+  151|       |  public struct OneOf2<P0: Parser, P1: Parser>: Parser
+  152|       |  where P0.Input == P1.Input, P0.Output == P1.Output {
+  153|       |    public let p0: P0, p1: P1
+  154|       |
+  155|     15|    @inlinable public init(_ p0: P0, _ p1: P1) {
+  156|     15|      self.p0 = p0
+  157|     15|      self.p1 = p1
+  158|     15|    }
+  159|       |
+  160|     17|    @inlinable public func parse(_ input: inout P0.Input) rethrows -> P0.Output {
+  161|     17|      let original = input
+  162|     17|      do { return try self.p0.parse(&input) } catch let e0 {
+  163|     11|        do {
+  164|     11|          input = original
+  165|     11|          return try self.p1.parse(&input)
+  166|     11|        } catch let e1 {
+  167|      4|          throw ParsingError.manyFailed(
+  168|      4|            [e0, e1], at: input
+  169|      4|          )
+  170|      4|        }
+  171|     11|      }
+  172|     17|    }
+  173|       |  }
+  174|       |
+  175|       |  /// A parser that parses output from an optional parser.
+  176|       |  ///
+  177|       |  /// You won't typically construct this parser directly, but instead will use standard `if`
+  178|       |  /// statements in a ``OneOfBuilder`` block to automatically build optional parsers:
+  179|       |  ///
+  180|       |  /// ```swift
+  181|       |  /// let whitespace = OneOf {
+  182|       |  ///   if shouldParseNewlines {
+  183|       |  ///     "\r\n"
+  184|       |  ///     "\r"
+  185|       |  ///     "\n"
+  186|       |  ///   }
+  187|       |  ///
+  188|       |  ///   " "
+  189|       |  ///   "\t"
+  190|       |  /// }
+  191|       |  /// ```
+  192|       |  public struct OptionalOneOf<Wrapped: Parser>: Parser {
+  193|       |    @usableFromInline
+  194|       |    let wrapped: Wrapped?
+  195|       |
+  196|       |    @usableFromInline
+  197|      5|    init(wrapped: Wrapped?) {
+  198|      5|      self.wrapped = wrapped
+  199|      5|    }
+  200|       |
+  201|       |    @inlinable
+  202|      6|    public func parse(_ input: inout Wrapped.Input) throws -> Wrapped.Output {
+  203|      6|      guard let wrapped = self.wrapped
+  204|      6|      else { throw ParsingError.manyFailed([], at: input) }
+  205|      2|      return try wrapped.parse(&input)
+  206|      6|    }
+  207|       |  }
+  208|       |}
+  209|       |
+  210|       |extension OneOfBuilder.OneOf2: ParserPrinter where P0: ParserPrinter, P1: ParserPrinter {
+  211|       |  @inlinable
+  212|      9|  public func print(_ output: P0.Output, into input: inout P0.Input) rethrows {
+  213|      9|    let original = input
+  214|      9|    do { try self.p1.print(output, into: &input) } catch let e1 {
+  215|      5|      do {
+  216|      5|        input = original
+  217|      5|        try self.p0.print(output, into: &input)
+  218|      4|      } catch let e0 {
+  219|      1|        throw PrintingError.manyFailed(
+  220|      1|          [e1, e0], at: input
+  221|      1|        )
+  222|      4|      }
+  223|      8|    }
+  224|      8|  }
+  225|       |}
+  226|       |
+  227|       |extension OneOfBuilder.OptionalOneOf: ParserPrinter where Wrapped: ParserPrinter {
+  228|       |  @inlinable
+  229|      2|  public func print(_ output: Wrapped.Output, into input: inout Wrapped.Input) throws {
+  230|      2|    guard let wrapped = self.wrapped
+  231|      2|    else { throw PrintingError.manyFailed([], at: input) }
+  232|      1|    try wrapped.print(output, into: &input)
+  233|      1|  }
+  234|       |}
+  235|       |
+  236|       |extension OneOfBuilder where Input == Substring {
+  237|       |  @_disfavoredOverload
+  238|       |  public static func buildExpression<P: Parser>(_ parser: P)
+  239|       |    -> From<Conversions.SubstringToUTF8View, Substring.UTF8View, P>
+  240|      0|  where P.Input == Substring.UTF8View {
+  241|      0|    From(.utf8) {
+  242|      0|      parser
+  243|      0|    }
+  244|      0|  }
+  245|       |}
+  246|       |
+  247|       |extension OneOfBuilder where Input == Substring.UTF8View {
+  248|       |  @_disfavoredOverload
+  249|       |  public static func buildExpression<P: Parser>(_ parser: P) -> P
+  250|      0|  where P.Input == Substring.UTF8View {
+  251|      0|    parser
+  252|      0|  }
+  253|       |}
+

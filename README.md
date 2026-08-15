@@ -23,8 +23,19 @@ mutant source files, and mutation results) is in [`experiments/`](experiments/).
 
 ## Methodology (summary)
 
-Ten paired experiments (E1–E10) were run across five mature open-source Swift
-repositories. For each experiment:
+Fifteen paired experiments were run across five mature open-source Swift
+repositories, in two phases. An **exploratory phase** (E1–E10) selected
+components partly for their likely ability to distinguish the two suites.
+A **neutral-selection follow-up phase** (E11–E15) then applied a
+pre-declared (not externally pre-registered), comparison-neutral rule —
+enumerate eligible components, sort alphabetically by production path,
+select the first eligible one, freeze before any outcome is observed — to
+add one additional, neutrally selected component per repository. See
+`paper/paper_revised.md` §4 for the full protocol and §7 for a disclosed,
+quantified mutation-selection look-ahead limitation that applies to a
+subset of experiments (most heavily E2 and E11).
+
+For each experiment:
 
 1. A production component was selected and its human-authored test filter and scope were frozen.
 2. Human test suite coverage was measured as a baseline.
@@ -60,9 +71,23 @@ Threats to Validity section for known limitations.
 | E9 | [apple/swift-numerics](https://github.com/apple/swift-numerics) | `899af71c0256d0ad181e3b7eb3453c1065d928a5` | `Sources/IntegerUtilities/SaturatingArithmetic.swift` | Numerical computation (integer) |
 | E10 | [apple/swift-numerics](https://github.com/apple/swift-numerics) | `899af71c0256d0ad181e3b7eb3453c1065d928a5` | `Sources/ComplexModule/Polar.swift` | Numerical computation (floating-point) |
 
-Full quantitative results (coverage, mutation scores, statistical tests, and
-the identical-coverage/divergent-mutation-score cases) are in the paper —
-see `paper/paper_revised.md`, Section "Results".
+E11–E15 are the neutral-selection follow-up phase — one additional,
+alphabetically-first eligible component per repository, selected by a rule
+frozen before any outcome was observed (`experiments/E{N}-*/research/experiment-N-candidate-selection.md`):
+
+| # | Upstream repo | Component under test | Domain |
+|---|---|---|---|
+| E11 | [pointfreeco/swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing) | `Sources/SnapshotTesting/SnapshotTestingConfiguration.swift` | Configuration / snapshot testing infrastructure |
+| E12 | [apple/swift-collections](https://github.com/apple/swift-collections) | `Sources/BasicContainers/RigidArray/RigidArray+Append.swift` | Data structures (fixed-capacity array) |
+| E13 | [apple/swift-algorithms](https://github.com/apple/swift-algorithms) | `Sources/Algorithms/AdjacentPairs.swift` | Algorithms (sequence adjacency) |
+| E14 | [pointfreeco/swift-parsing](https://github.com/pointfreeco/swift-parsing) | `Sources/Parsing/Builders/OneOfBuilder.swift` | Parser-printers (result builder) |
+| E15 | [apple/swift-numerics](https://github.com/apple/swift-numerics) | `Sources/ComplexModule/Complex+AlgebraicField.swift` | Numerical computation (complex algebraic field) |
+
+Full quantitative results (coverage, mutation scores, descriptive statistics,
+the identical-coverage/divergent-mutation-score cases, union mutation
+effectiveness, and the mutation-selection look-ahead audit) are in the
+paper — see `paper/paper_revised.md`, Sections "Results" and "Threats to
+Validity".
 
 Each `experiments/E*/` directory contains:
 
@@ -78,6 +103,17 @@ experiment). The structured, analyzed results in `research/*-mutation-results.md
 and `.jsonl` are derived from those logs. The upstream repositories themselves
 are also not vendored here — clone them at the pinned commits above to
 reproduce the exact baselines.
+
+Top-level [`research/`](research/) contains cross-experiment analyses that
+span multiple `experiments/E*/` directories rather than belonging to a single
+one: `confirmatory-e11-e15.csv`/`-analysis.md` (E11–E15 dataset and analysis),
+`mutation-lookahead-audit.csv`/`.md` (audit of suite-content-aware mutant
+selection across all fifteen experiments, §7.3 of the paper),
+`union-mutation-analysis.csv`/`.md` (MS(Human ∪ AI) per experiment, §5.4b/§5.7),
+and `pooled-mutation-analysis.md` (mutant-weighted pooled scores per phase).
+See `paper/reviewer-repair-change-log.md` for how these were used to repair
+the manuscript after an adversarial internal review
+(`paper/conference-review-audit.md`).
 
 ## License note
 

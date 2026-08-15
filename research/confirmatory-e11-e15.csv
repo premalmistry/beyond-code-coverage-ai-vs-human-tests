@@ -1,0 +1,6 @@
+experiment,repository,component,human_test_count,ai_test_count,human_assertions,ai_assertions,human_line_coverage_pct,ai_line_coverage_pct,human_region_coverage_pct,ai_region_coverage_pct,human_function_coverage_pct,ai_function_coverage_pct,valid_mutants,human_killed,ai_killed,human_mutation_score_pct,ai_mutation_score_pct,ai_minus_human_ms_diff_pp,human_only_kills,ai_only_kills,shared_survivors,equivalent_or_invalid_mutants,contamination_status,integrity_status
+11,pointfreeco/swift-snapshot-testing,Sources/SnapshotTesting/SnapshotTestingConfiguration.swift,9,24,28,42,57.78,97.78,41.67,94.44,56.52,91.30,24,10,22,41.7,91.7,50.0,1,13,1,0,CLEAN,PASS
+12,apple/swift-collections,Sources/BasicContainers/RigidArray/RigidArray+Append.swift,8,28,21,77,83.62,93.10,75.56,82.22,68.57,77.14,22,20,21,90.9,95.5,4.6,0,1,1,2,CLEAN,PASS
+13,apple/swift-algorithms,Sources/Algorithms/AdjacentPairs.swift,12,25,14,63,92.95,92.95,89.04,80.82,80.56,83.33,23,21,23,91.3,100.0,8.7,0,2,0,1,CLEAN,PASS
+14,pointfreeco/swift-parsing,Sources/Parsing/Builders/OneOfBuilder.swift,2,18,10,36,47.62,79.76,41.67,86.11,47.37,73.68,22,15,16,68.2,72.7,4.5,2,3,4,0,CLEAN,PASS
+15,apple/swift-numerics,Sources/ComplexModule/Complex+AlgebraicField.swift,2,19,7,41,71.19,44.92,40.62,78.12,25.00,66.67,24,13,16,54.2,66.7,12.5,5,8,3,0,CLEAN,PASS

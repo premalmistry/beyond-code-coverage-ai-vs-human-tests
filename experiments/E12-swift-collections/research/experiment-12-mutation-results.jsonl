@@ -1,0 +1,24 @@
+{"id": "E12-M01", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M02", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M03", "human": "KILLED", "ai": "KILLED", "valid": true}
+{"id": "E12-M04", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M05", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M06", "human": "SURVIVED", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M07", "human": "KILLED", "ai": "KILLED", "valid": true}
+{"id": "E12-M08", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M09", "human": "SURVIVED", "ai": "SURVIVED", "valid": false, "adjudication": "EQUIVALENT"}
+{"id": "E12-M10", "human": "KILLED", "ai": "KILLED", "valid": true}
+{"id": "E12-M11", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M12", "human": "KILLED-CRASH", "ai": "KILLED", "valid": true}
+{"id": "E12-M13", "human": "KILLED-CRASH", "ai": "KILLED", "valid": true}
+{"id": "E12-M14", "human": "SURVIVED", "ai": "SURVIVED", "valid": true, "adjudication": "VALID_SHARED_SURVIVOR"}
+{"id": "E12-M15", "human": "SURVIVED", "ai": "SURVIVED", "valid": false, "adjudication": "EQUIVALENT"}
+{"id": "E12-M16", "human": "KILLED", "ai": "KILLED", "valid": true}
+{"id": "E12-M17", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M18", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M19", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M20", "human": "KILLED-CRASH", "ai": "KILLED-CRASH", "valid": true}
+{"id": "E12-M21", "human": "KILLED", "ai": "KILLED", "valid": true}
+{"id": "E12-M22", "human": "KILLED", "ai": "KILLED", "valid": true}
+{"id": "E12-M23", "human": "KILLED", "ai": "KILLED", "valid": true}
+{"id": "E12-M24", "human": "KILLED", "ai": "KILLED", "valid": true}

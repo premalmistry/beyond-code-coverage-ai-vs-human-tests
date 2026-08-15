@@ -1,0 +1,30 @@
+experiment,mutant_id,suite_specific_prediction,human_specific_rationale,ai_specific_rationale,evidence_quote_or_summary,risk_level
+E2,E2-M04,yes,yes,yes,"Human pred 'No' / AI pred 'Yes'; rationale: 'human dict has 3 keys' (no single-entry dict in frozen Human filter) vs AI 'singleKeyValuePair' test",HIGH
+E2,E2-M05,yes,yes,yes,"Human pred 'No' / AI pred 'Yes'; rationale: 'human set has 2 members' vs AI 'singleMemberSet' test",HIGH
+E2,E2-M13,yes,yes,yes,"Human pred 'No' / AI pred 'Yes'; rationale: 'no enum dumps in human filter' vs AI 'enumWithoutAssociatedValues'",HIGH
+E2,E2-M14,yes,yes,yes,"Human pred 'No' / AI pred 'Yes'; rationale: 'no enum dumps' (human) vs AI enum-associated-value tests",HIGH
+E2,E2-M03,yes,yes,yes,"Human pred 'Likely' / AI pred 'Yes'; rationale: 'no empty array in human; [1] becomes plural -> Yes' vs AI empty+singular tests",MODERATE
+E2,E2-M12,yes,yes,yes,"Human pred 'Uncertain' / AI pred 'Yes'; rationale: 'optionals only as nested children if at all' (human) vs AI optionalNone/optionalSome tests",MODERATE
+E2,E2-M18,yes,yes,yes,"Human pred 'Uncertain' / AI pred 'Likely'; rationale: 'depends on Mirror labels in recursion fixtures' (human) vs AI self-ref/mutual dumps",MODERATE
+E3,E3-M02,yes,no,yes,"Human pred 'Yes (tie-break tests)' / AI pred 'Likely'; rationale: 'AI may SURVIVE if it only checks numeric multiset/min/max values' -- explicit reference to AI suite's assertion style",HIGH
+E3,E3-M04,yes,no,yes,"Human pred 'Yes (tie-break max)' / AI pred 'Likely'; same rationale as E3-M02 applied to the max-side mutant; this mutant was realized as a Human-only kill in the actual results",HIGH
+E3,E3-M15,yes,no,no,"Human pred 'Likely' / AI pred 'Likely'; rationale: 'both suites use duplicates, but path may still be rare -> Uncertain/Likely, not guaranteed' -- softer, non-differential hedge",LOW
+E6,E6-M21,yes,yes,no,"Human pred 'AI kill' (i.e. Human predicted to miss) / AI pred 'Both kill'; risk note: 'Human may miss Sequence path' -- explicit reference to Human suite's Collection-only coverage; realized exactly as AI-only kill",HIGH
+E6,E6-M26,yes,yes,no,"Human pred 'AI kill' / AI pred 'Both kill'; risk note: 'Human Sequence uncovered' -- same rationale as E6-M21; realized exactly as AI-only kill",HIGH
+E7,E7-M19,yes,yes,no,"H pred 'AI kill' / AI pred 'Both kill'; risk note: 'Human may miss' (print-path validation); realized as AI-only kill",HIGH
+E7,E7-M24,yes,yes,no,"H pred 'Possibly survives' / AI pred 'Both kill'; risk note: 'Human has dedicated test' (i.e. reviewer of the plan flagged doubt about the Human-survives prediction); prediction was NOT realized -- actual result was Both-killed, not AI-only",LOW
+E8,E8-M24,yes,no,yes,"Risk column note: 'AI kill likely' for 'print negative guard' mutant, the only row in the E8 plan with any suite-specific language; realized as AI-only kill",MODERATE
+E11,E11-M01,yes,yes,no,"Human pred 'survive*' / AI pred 'kill'; footnote: '*Human may not call rawValue' -- explicit reference to Human suite's API usage; realized as AI-only kill",HIGH
+E11,E11-M02,yes,yes,no,"Same rawValue-storage cluster as E11-M01 ('.failed' case); 'survive*' Human prediction with rawValue footnote; realized as AI-only kill",HIGH
+E11,E11-M03,yes,yes,no,"Same rawValue-storage cluster ('.missing' case); 'survive*' Human prediction; realized as AI-only kill",HIGH
+E11,E11-M04,yes,yes,no,"Same rawValue-storage cluster ('.never' case); 'survive*' Human prediction; realized as AI-only kill",HIGH
+E11,E11-M05,yes,yes,no,"rawValue default-case mutant; 'survive*' Human prediction under the same rawValue footnote (this mutant was actually KILLED by Human in results -- prediction was wrong)",MODERATE
+E11,E11-M06,yes,yes,no,"rawValue string-match mutant ('all' case-sensitivity); 'survive*' Human prediction under rawValue footnote; realized as AI-only kill",HIGH
+E11,E11-M07,yes,yes,no,"Bool-literal bridge mutant (true->.all); 'survive*' Human prediction under rawValue/bool-literal footnote; realized as AI-only kill",HIGH
+E11,E11-M08,yes,yes,no,"Bool-literal bridge mutant (false->.missing); 'survive*' Human prediction; realized as AI-only kill",HIGH
+E11,E11-M09,yes,yes,no,"Bool-literal polarity-swap mutant; 'survive*' Human prediction; realized as AI-only kill",HIGH
+E11,E11-M17,yes,yes,no,"DiffTool nil-literal mutant; 'survive*' Human prediction with footnote '*Human may not use nil literal' -- explicit reference to Human suite's API usage; realized as AI-only kill",HIGH
+E11,E11-M21,yes,yes,no,"Async withSnapshotTesting record: mutant; 'survive*' Human prediction with footnote '*Human has no async coverage' -- explicit, directly verified against the E11 human-baseline uncovered-paths list; realized as AI-only kill",HIGH
+E11,E11-M22,yes,yes,no,"Async withSnapshotTesting diffTool: mutant; 'survive*' Human prediction under the same async-coverage footnote; AI was predicted 'kill' but this mutant was actually a SHARED SURVIVOR (AI prediction wrong)",MODERATE
+E13,E13-M03,yes,yes,no,"Human pred 'survive*' / AI pred 'kill' for 'underestimatedCount +1' mutant; theme name itself ('underestimatedCount') signals the mutant was chosen because the frozen Human filter does not assert this property; realized exactly as AI-only kill",HIGH
+E13,E13-M20,yes,yes,no,"Human pred 'survive*' / AI pred 'kill' for 'underestimatedCount no max' mutant; same underestimatedCount-targeting rationale as E13-M03; realized exactly as AI-only kill",HIGH

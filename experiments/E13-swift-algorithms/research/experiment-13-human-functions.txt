@@ -1,0 +1,41 @@
+File '/Users/premalmistry/Desktop/Projects/beyond-code-coverage-ai-vs-human-tests/swift-algorithms/Sources/Algorithms/AdjacentPairs.swift':
+Name                                                                                                      Regions    Miss   Cover     Lines    Miss   Cover  Branches    Miss   Cover
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+$sST10AlgorithmsE13adjacentPairsAA08AdjacentC8SequenceVyxGyF                                                    1       0 100.00%         3       0 100.00%         0       0   0.00%
+$sSl10AlgorithmsE13adjacentPairsAA08AdjacentC10CollectionVyxGyF                                                 1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s10Algorithms21AdjacentPairsSequenceV4baseACyxGx_tcfC                                                          1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s10Algorithms21AdjacentPairsSequenceV8IteratorV4baseAEyx_GADQz_tcfC                                            1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s10Algorithms21AdjacentPairsSequenceV8IteratorV4next7ElementQz_AHtSgyF                                         5       0 100.00%        12       0 100.00%         0       0   0.00%
+$s10Algorithms21AdjacentPairsSequenceV12makeIteratorAC0F0Vyx_GyF                                                1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s10Algorithms21AdjacentPairsSequenceV19underestimatedCountSivg                                                 1       1   0.00%         3       3   0.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV4baseACyxGx_tcfC                                                        3       0 100.00%         7       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5IndexV5first6secondAEyx_GADQz_AItcfC                                   1       0 100.00%         4       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5IndexV2eeoiySbAEyx_G_AGtFZ                                             1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5IndexV1loiySbAEyx_G_AGtFZ                                              1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV10startIndexAC0F0Vyx_Gvg                                                3       0 100.00%         5       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV8endIndexAC0F0Vyx_Gvg                                                   1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionVy7ElementQz_AEtAC5IndexVyx_Gcig                                         1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5index5afterAC5IndexVyx_GAH_tF                                          3       0 100.00%         7       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5index5afterAC5IndexVyx_GAH_tFSbyXEfu_                                  1       0 100.00%         1       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5index5afterAC5IndexVyx_GAH_tFSSyXEfu0_                                 1       1   0.00%         1       1   0.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5index_8offsetByAC5IndexVyx_GAH_SitF                                    7       1  85.71%        10       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5index_8offsetByAC5IndexVyx_GAH_SitFSSyXEfu_                            1       1   0.00%         1       1   0.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5index_8offsetBy07limitedG0AC5IndexVyx_GSgAI_SiAItF                    12       0 100.00%        12       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV13offsetForward_2by9limitedByAC5IndexVyx_GSgAI_SiAItF                   5       0 100.00%        18       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV13offsetForward_2by9limitedByAC5IndexVyx_GSgAI_SiAItFSbyXEfu_           1       0 100.00%         1       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV13offsetForward_2by9limitedByAC5IndexVyx_GSgAI_SiAItFSbyXEfu0_          1       0 100.00%         1       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV13offsetForward_2by9limitedByAC5IndexVyx_GSgAI_SiAItFSbyXEfu1_          1       0 100.00%         1       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV13offsetForward_2by9limitedByAC5IndexVyx_GSgAI_SiAItFSSyXEfu2_          1       1   0.00%         1       1   0.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV14offsetBackward_2by9limitedByAC5IndexVyx_GSgAI_SiAItF                  5       0 100.00%        16       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV14offsetBackward_2by9limitedByAC5IndexVyx_GSgAI_SiAItFSbyXEfu_          1       0 100.00%         1       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV14offsetBackward_2by9limitedByAC5IndexVyx_GSgAI_SiAItFSbyXEfu0_         1       0 100.00%         1       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV14offsetBackward_2by9limitedByAC5IndexVyx_GSgAI_SiAItFSbyXEfu1_         1       0 100.00%         1       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV14offsetBackward_2by9limitedByAC5IndexVyx_GSgAI_SiAItFSSyXEfu2_         1       1   0.00%         1       1   0.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV8distance4from2toSiAC5IndexVyx_G_AItF                                   1       0 100.00%         7       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5countSivg                                                              1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionVAASKRzrlE5index6beforeAC5IndexVyx_GAH_tF                                3       0 100.00%         9       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionVAASKRzrlE5index6beforeAC5IndexVyx_GAH_tFSbyXEfu_                        1       0 100.00%         1       0 100.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionVAASKRzrlE5index6beforeAC5IndexVyx_GAH_tFSSyXEfu0_                       1       1   0.00%         1       1   0.00%         0       0   0.00%
+$s10Algorithms23AdjacentPairsCollectionV5IndexVAASHADRpzrlE4hash4intoys6HasherVz_tF                             1       1   0.00%         3       3   0.00%         0       0   0.00%
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                                                          73       8  89.04%       156      11  92.95%         0       0   0.00%

@@ -1,0 +1,17 @@
+File '/Users/premalmistry/Desktop/Projects/beyond-code-coverage-ai-vs-human-tests/swift-numerics/Sources/ComplexModule/Complex+AlgebraicField.swift':
+Name                                                   Regions    Miss   Cover     Lines    Miss   Cover  Branches    Miss   Cover
+----------------------------------------------------------------------------------------------------------------------------------
+$s13ComplexModule0A0V3oneACyxGvgZ                            1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s13ComplexModule0A0V9conjugateACyxGvg                       1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s13ComplexModule0A0V2deoiyyACyxGz_AEtFZ                     1       0 100.00%         3       0 100.00%         0       0   0.00%
+$s13ComplexModule0A0V1doiyACyxGAE_AEtFZ                      3       0 100.00%         9       0 100.00%         0       0   0.00%
+$s13ComplexModule0A0V14rescaledDivideyACyxGAE_AEtFZ         10       1  90.00%        72      52  27.78%         0       0   0.00%
+$s13ComplexModule0A0V10normalizedACyxGSgvg                   7       1  85.71%         9       1  88.89%         0       0   0.00%
+$s13ComplexModule0A0V10normalizedACyxGSgvgSbyKXEfu_          1       0 100.00%         1       0 100.00%         0       0   0.00%
+$s13ComplexModule0A0V10reciprocalACyxGSgvg                   4       1  75.00%         7       1  85.71%         0       0   0.00%
+$s13ComplexModule0A0V10reciprocalACyxGSgvgSbyKXEfu_          1       1   0.00%         1       1   0.00%         0       0   0.00%
+$s13ComplexModule0A0V10reciprocalACyxGSgvgSbyKXEfu0_         1       1   0.00%         1       1   0.00%         0       0   0.00%
+$s13ComplexModule0A0V11_relaxedAddyACyxGAE_AEtFZ             1       1   0.00%         3       3   0.00%         0       0   0.00%
+$s13ComplexModule0A0V11_relaxedMulyACyxGAE_AEtFZ             1       1   0.00%         6       6   0.00%         0       0   0.00%
+----------------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                       32       7  78.12%       118      65  44.92%         0       0   0.00%

@@ -1,0 +1,183 @@
+    1|       |//===--- Complex+AlgebraicField.swift -------------------------*- swift -*-===//
+    2|       |//
+    3|       |// This source file is part of the Swift Numerics open source project
+    4|       |//
+    5|       |// Copyright (c) 2019-2025 Apple Inc. and the Swift Numerics project authors
+    6|       |// Licensed under Apache License v2.0 with Runtime Library Exception
+    7|       |//
+    8|       |// See https://swift.org/LICENSE.txt for license information
+    9|       |//
+   10|       |//===----------------------------------------------------------------------===//
+   11|       |
+   12|       |import RealModule
+   13|       |
+   14|       |extension Complex: AlgebraicField {
+   15|       |  /// The multiplicative identity `1 + 0i`.
+   16|       |  ///
+   17|       |  /// See also: ``zero``, ``i``, ``infinity``
+   18|       |  @_transparent
+   19|      6|  public static var one: Complex {
+   20|      6|    Complex(1, 0)
+   21|      6|  }
+   22|       |  
+   23|       |  /// The [complex conjugate][conj] of this value.
+   24|       |  ///
+   25|       |  /// [conj]: https://en.wikipedia.org/wiki/Complex_conjugate
+   26|       |  @_transparent
+   27|     15|  public var conjugate: Complex {
+   28|     15|    Complex(x, -y)
+   29|     15|  }
+   30|       |  
+   31|       |  @_transparent
+   32|      1|  public static func /=(z: inout Complex, w: Complex) {
+   33|      1|    z = z / w
+   34|      1|  }
+   35|       |  
+   36|       |  @_transparent
+   37|     17|  public static func /(z: Complex, w: Complex) -> Complex {
+   38|     17|    // Try the naive expression z/w = z * (conj(w) / |w|^2); if we can
+   39|     17|    // compute this without over/underflow, everything is fine and the
+   40|     17|    // result is correct. If not, we have to rescale and do the
+   41|     17|    // computation carefully (see below).
+   42|     17|    let lenSq = w.lengthSquared
+   43|     17|    guard lenSq.isNormal else { return rescaledDivide(z, w) }
+   44|     12|    return z * w.conjugate.divided(by: lenSq)
+   45|     17|  }
+   46|       |  
+   47|       |  @usableFromInline @_alwaysEmitIntoClient @inline(never)
+   48|      5|  internal static func rescaledDivide(_ z: Complex, _ w: Complex) -> Complex {
+   49|      5|    if w.isZero { return .infinity }
+   50|      2|    if !w.isFinite { return .zero }
+   51|      1|    //  Scaling algorithm adapted from Doug Priest's "Efficient Scaling for
+   52|      1|    //  Complex Division":
+   53|      1|    if w.magnitude < .leastNormalMagnitude {
+   54|      1|      //  A difference from Priest's algorithm is that he didn't have to worry
+   55|      1|      //  about types like Float16, where the significand width is comparable
+   56|      1|      //  to the exponent range, such that |leastNormalMagnitude|^(-¾) isn't
+   57|      1|      //  representable (e.g. for Float16 it would want to be 2¹⁸, but the
+   58|      1|      //  largest allowed exponent is 15). Note that it's critical to use zʹ/wʹ
+   59|      1|      //  after rescaling to avoid this, rather than falling through into the
+   60|      1|      //  normal rescaling, because otherwise we might end up back in the
+   61|      1|      //  situation where |w| ~ 1.
+   62|      1|      let s = 1/(RealType(RealType.radix) * .leastNormalMagnitude)
+   63|      1|      let wʹ = w.multiplied(by: s)
+   64|      1|      let zʹ = z.multiplied(by: s)
+   65|      1|      return zʹ / wʹ
+   66|      1|    }
+   67|      0|    //  Having handled that case, we proceed pretty similarly to Priest:
+   68|      0|    //
+   69|      0|    //  1. Choose real scale s ~ |w|^(-¾), an exact power of the radix.
+   70|      0|    //  2. wʹ ← sw
+   71|      0|    //  3. zʹ ← sz
+   72|      0|    //  4. return zʹ * (wʹ.conjugate / wʹ.lengthSquared) (i.e. zʹ/wʹ).
+   73|      0|    //
+   74|      0|    //  Why is this safe and accurate? First, observe that wʹ and zʹ are both
+   75|      0|    //  computed exactly because:
+   76|      0|    //
+   77|      0|    //  - s is an exact power of radix.
+   78|      0|    //  - wʹ ~ |w|^(¼), and hence cannot overflow or underflow.
+   79|      0|    //  - zʹ might overflow or underflow, but only if the final result also
+   80|      0|    //       overflows or underflows. (This is more subtle than I make it
+   81|      0|    //       sound. In particular, most of the fast ways one might try to
+   82|      0|    //       compute s give rise to a situation where when |w| is close to
+   83|      0|    //       one, multiplication by s is a dilation even though the actual
+   84|      0|    //       division is a contraction or vice-versa, and thus intermediate
+   85|      0|    //       computations might incorrectly overflow or underflow. Priest
+   86|      0|    //       had to take some care to avoid this situation, but we do not,
+   87|      0|    //       because we have already ruled out |w| ~ 1 before we call this
+   88|      0|    //       function.)
+   89|      0|    //
+   90|      0|    //  Next observe that |wʹ.lengthSquared| ~ |w|^(½), so again this cannot
+   91|      0|    //  overflow or underflow, and neither can (wʹ.conjugate/wʹ.lengthSquared),
+   92|      0|    //  which has magnitude like |w|^(-¼).
+   93|      0|    //
+   94|      0|    //  Note that because the scale factor is always a power of the radix,
+   95|      0|    //  the rescaling does not affect rounding, and so this algorithm is scale-
+   96|      0|    //  invariant compared to the mainline `/` implementation, up to the
+   97|      0|    //  underflow boundary.
+   98|      0|    //
+   99|      0|    //  Note that our final assembly of the result is different from Priest;
+  100|      0|    //  he applies s to w twice, instead of once to w and once to z, and
+  101|      0|    //  does the product as (zw̅ʺ)*(1/|wʹ|²), while we do zʹ(w̅ʹ/|wʹ|²). We
+  102|      0|    //  prefer our version for three reasons:
+  103|      0|    //
+  104|      0|    //  1. it extracts a little more ILP
+  105|      0|    //  2. it makes it so that we get exactly the same roundings on the
+  106|      0|    //     rescaled divide path as on the fast path, so that z/w = tz/tw
+  107|      0|    //     when tz and tw are computed exactly.
+  108|      0|    //  3. it unlocks a future optimization where we hoist s and
+  109|      0|    //     (w̅ʹ/|wʹ|²) and make divisions all fast-path without perturbing
+  110|      0|    //     rounding.
+  111|      0|    let s = RealType(
+  112|      0|      sign: .plus,
+  113|      0|      exponent: -3*w.magnitude.exponent/4,
+  114|      0|      significand: 1
+  115|      0|    )
+  116|      0|    let wʹ = w.multiplied(by: s)
+  117|      0|    let zʹ = z.multiplied(by: s)
+  118|      0|    return zʹ * wʹ.conjugate.divided(by: wʹ.lengthSquared)
+  119|      5|  }
+  120|       |  
+  121|       |  /// A normalized complex number with the same phase as this value.
+  122|       |  ///
+  123|       |  /// If such a value cannot be produced (because the phase of zero and
+  124|       |  /// infinity is undefined), `nil` is returned.
+  125|       |  @inlinable
+  126|      3|  public var normalized: Complex? {
+  127|      3|    if length.isNormal {
+  128|      1|      return self.divided(by: length)
+  129|      2|    }
+  130|      2|    if isZero || !isFinite {
+  131|      2|      return nil
+  132|      2|    }
+  133|      0|    return self.divided(by: magnitude).normalized
+  134|      3|  }
+  135|       |  
+  136|       |  /// The reciprocal of this value, if it can be computed without undue
+  137|       |  /// overflow or underflow.
+  138|       |  ///
+  139|       |  /// If z.reciprocal is non-nil, you can safely replace division by z with
+  140|       |  /// multiplication by this value. It is not advantageous to do this for an
+  141|       |  /// isolated division, but if you are dividing many values by a single
+  142|       |  /// denominator, this will often be a significant performance win.
+  143|       |  ///
+  144|       |  /// A typical use case looks something like this:
+  145|       |  /// ```
+  146|       |  /// func divide<T: Real>(data: [Complex<T>], by divisor: Complex<T>) -> [Complex<T>] {
+  147|       |  ///   // If divisor is well-scaled, multiply by reciprocal.
+  148|       |  ///   if let recip = divisor.reciprocal {
+  149|       |  ///     return data.map { $0 * recip }
+  150|       |  ///   }
+  151|       |  ///   // Fallback on using division.
+  152|       |  ///   return data.map { $0 / divisor }
+  153|       |  /// }
+  154|       |  /// ```
+  155|       |  ///
+  156|       |  /// Error Bounds:
+  157|       |  ///
+  158|       |  /// Unlike real types, when working with complex types, multiplying by the
+  159|       |  /// reciprocal instead of dividing cannot change the result. If the
+  160|       |  /// reciprocal is non-nil, the two computations are always equivalent.
+  161|       |  @inlinable
+  162|      3|  public var reciprocal: Complex? {
+  163|      3|    let recip = 1/self
+  164|      3|    if recip.isNormal || isZero || !isFinite {
+  165|      3|      return recip
+  166|      3|    }
+  167|      0|    return nil
+  168|      3|  }
+  169|       |  
+  170|       |  @_transparent
+  171|      0|  public static func _relaxedAdd(_ a: Self, _ b: Self) -> Self {
+  172|      0|    Complex(Relaxed.sum(a.x, b.x), Relaxed.sum(a.y, b.y))
+  173|      0|  }
+  174|       |  
+  175|       |  @_transparent
+  176|      0|  public static func _relaxedMul(_ a: Self, _ b: Self) -> Self {
+  177|      0|    Complex(
+  178|      0|      Relaxed.sum(Relaxed.product(a.x, b.x), -Relaxed.product(a.y, b.y)),
+  179|      0|      Relaxed.sum(Relaxed.product(a.x, b.y),  Relaxed.product(a.y, b.x))
+  180|      0|    )
+  181|      0|  }
+  182|       |}
+
