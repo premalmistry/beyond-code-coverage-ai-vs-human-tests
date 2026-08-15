@@ -1,0 +1,131 @@
+    1|       |#if !os(WASI)
+    2|       |  import Foundation
+    3|       |
+    4|       |  #if canImport(FoundationNetworking)
+    5|       |    import FoundationNetworking
+    6|       |  #endif
+    7|       |
+    8|       |  extension Snapshotting where Value == URLRequest, Format == String {
+    9|       |    /// A snapshot strategy for comparing requests based on raw equality.
+   10|       |    ///
+   11|       |    /// ``` swift
+   12|       |    /// assertSnapshot(of: request, as: .raw)
+   13|       |    /// ```
+   14|       |    ///
+   15|       |    /// Records:
+   16|       |    ///
+   17|       |    /// ```
+   18|       |    /// POST http://localhost:8080/account
+   19|       |    /// Cookie: pf_session={"userId":"1"}
+   20|       |    ///
+   21|       |    /// email=blob%40pointfree.co&name=Blob
+   22|       |    /// ```
+   23|       |    public static let raw = Snapshotting.raw(pretty: false)
+   24|       |
+   25|       |    /// A snapshot strategy for comparing requests based on raw equality.
+   26|       |    ///
+   27|       |    /// - Parameter pretty: Attempts to pretty print the body of the request (supports JSON).
+   28|      1|    public static func raw(pretty: Bool) -> Snapshotting {
+   29|      5|      return SimplySnapshotting.lines.pullback { (request: URLRequest) in
+   30|      5|        let method =
+   31|      5|          "\(request.httpMethod ?? "GET") \(request.url?.sortingQueryItems()?.absoluteString ?? "(null)")"
+   32|      5|
+   33|      5|        let headers = (request.allHTTPHeaderFields ?? [:])
+   34|     11|          .map { key, value in "\(key): \(value)" }
+   35|      5|          .sorted()
+   36|      5|
+   37|      5|        let body: [String]
+   38|      5|        do {
+   39|      5|          if pretty, #available(iOS 11.0, macOS 10.13, tvOS 11.0, watchOS 4.0, *) {
+   40|      0|            body =
+   41|      0|              try request.httpBody
+   42|      0|              .map { try JSONSerialization.jsonObject(with: $0, options: []) }
+   43|      0|              .map {
+   44|      0|                try JSONSerialization.data(
+   45|      0|                  withJSONObject: $0, options: [.prettyPrinted, .sortedKeys])
+   46|      0|              }
+   47|      0|              .map { ["\n\(String(decoding: $0, as: UTF8.self))"] }
+   48|      0|              ?? []
+   49|      5|          } else {
+   50|      5|            throw NSError(domain: "co.pointfree.Never", code: 1, userInfo: nil)
+   51|      5|          }
+   52|      5|        } catch {
+   53|      5|          body =
+   54|      5|            request.httpBody
+   55|      5|            .map { ["\n\(String(decoding: $0, as: UTF8.self))"] }
+   56|      5|            ?? []
+   57|      5|        }
+   58|      5|
+   59|      5|        return ([method] + headers + body).joined(separator: "\n")
+   60|      5|      }
+   61|      1|    }
+   62|       |
+   63|       |    /// A snapshot strategy for comparing requests based on a cURL representation.
+   64|       |    ///
+   65|       |    // ``` swift
+   66|       |    // assertSnapshot(of: request, as: .curl)
+   67|       |    // ```
+   68|       |    //
+   69|       |    // Records:
+   70|       |    //
+   71|       |    // ```
+   72|       |    // curl \
+   73|       |    //   --request POST \
+   74|       |    //   --header "Accept: text/html" \
+   75|       |    //   --data 'pricing[billing]=monthly&pricing[lane]=individual' \
+   76|       |    //   "https://www.pointfree.co/subscribe"
+   77|       |    // ```
+   78|      5|    public static let curl = SimplySnapshotting.lines.pullback { (request: URLRequest) in
+   79|      5|
+   80|      5|      var components = ["curl"]
+   81|      5|
+   82|      5|      // HTTP Method
+   83|      5|      let httpMethod = request.httpMethod!
+   84|      5|      switch httpMethod {
+   85|      5|      case "GET": break
+   86|      5|      case "HEAD": components.append("--head")
+   87|      5|      default: components.append("--request \(httpMethod)")
+   88|      5|      }
+   89|      5|
+   90|      5|      // Headers
+   91|      5|      if let headers = request.allHTTPHeaderFields {
+   92|     11|        for field in headers.keys.sorted() where field != "Cookie" {
+   93|     11|          let escapedValue = headers[field]!.replacingOccurrences(of: "\"", with: "\\\"")
+   94|     11|          components.append("--header \"\(field): \(escapedValue)\"")
+   95|     11|        }
+   96|      5|      }
+   97|      5|
+   98|      5|      // Body
+   99|      5|      if let httpBodyData = request.httpBody,
+  100|      5|        let httpBody = String(data: httpBodyData, encoding: .utf8)
+  101|      5|      {
+  102|      2|        var escapedBody = httpBody.replacingOccurrences(of: "\\\"", with: "\\\\\"")
+  103|      2|        escapedBody = escapedBody.replacingOccurrences(of: "\"", with: "\\\"")
+  104|      2|
+  105|      2|        components.append("--data \"\(escapedBody)\"")
+  106|      2|      }
+  107|      5|
+  108|      5|      // Cookies
+  109|      5|      if let cookie = request.allHTTPHeaderFields?["Cookie"] {
+  110|      4|        let escapedValue = cookie.replacingOccurrences(of: "\"", with: "\\\"")
+  111|      4|        components.append("--cookie \"\(escapedValue)\"")
+  112|      4|      }
+  113|      5|
+  114|      5|      // URL
+  115|      5|      components.append("\"\(request.url!.sortingQueryItems()!.absoluteString)\"")
+  116|      5|
+  117|      5|      return components.joined(separator: " \\\n\t")
+  118|      5|    }
+  119|       |  }
+  120|       |
+  121|       |  extension URL {
+  122|     10|    fileprivate func sortingQueryItems() -> URL? {
+  123|     10|      var components = URLComponents(url: self, resolvingAgainstBaseURL: false)
+  124|     10|      let sortedQueryItems = components?.queryItems?.sorted { $0.name < $1.name }
+  125|     10|      components?.queryItems = sortedQueryItems
+  126|     10|
+  127|     10|      return components?.url
+  128|     10|    }
+  129|       |  }
+  130|       |#endif
+

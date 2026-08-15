@@ -1,0 +1,168 @@
+    1|       |//===--- SaturatingArithmetic.swift ---------------------------*- swift -*-===//
+    2|       |//
+    3|       |// This source file is part of the Swift Numerics open source project
+    4|       |//
+    5|       |// Copyright (c) 2023 Apple Inc. and the Swift Numerics project authors
+    6|       |// Licensed under Apache License v2.0 with Runtime Library Exception
+    7|       |//
+    8|       |// See https://swift.org/LICENSE.txt for license information
+    9|       |//
+   10|       |//===----------------------------------------------------------------------===//
+   11|       |
+   12|       |extension FixedWidthInteger {
+   13|       |  /// `~0` (all-ones) if this value is negative, otherwise `0`.
+   14|       |  ///
+   15|       |  /// Note that if `Self` is unsigned, this always returns `0`,
+   16|       |  /// but it is useful for writing algorithms that are generic over
+   17|       |  /// signed and unsigned integers.
+   18|       |  @inline(__always) @usableFromInline
+   19|   402k|  var signbit: Self {
+   20|   402k|    return self < .zero ? ~.zero : .zero
+   21|   402k|  }
+   22|       |  
+   23|       |  /// Saturating integer addition
+   24|       |  ///
+   25|       |  /// `self + other` clamped to the representable range of the type. e.g.:
+   26|       |  /// ```
+   27|       |  /// let a: Int8 = 84
+   28|       |  /// let b: Int8 = 100
+   29|       |  /// // 84 + 100 = 184 is not representable as
+   30|       |  /// // Int8, so `c` is clamped to Int8.max (127).
+   31|       |  /// let c = a.addingWithSaturation(b)
+   32|       |  /// ```
+   33|       |  ///
+   34|       |  /// If the "normal addition" `self + other` does not trap,
+   35|       |  /// this method produces the same result.
+   36|       |  @inlinable
+   37|   131k|  public func addingWithSaturation(_ other: Self) -> Self {
+   38|   131k|    let (wrapped, overflow) = addingReportingOverflow(other)
+   39|   131k|    return overflow ? Self.max &- signbit : wrapped
+   40|   131k|  }
+   41|       |  
+   42|       |  /// Saturating integer subtraction
+   43|       |  ///
+   44|       |  /// `self - other` clamped to the representable range of the type. e.g.:
+   45|       |  /// ```
+   46|       |  /// let a: UInt = 37
+   47|       |  /// let b: UInt = 42
+   48|       |  /// // 37 - 42 = -5, which is not representable as
+   49|       |  /// // UInt, so `c` is clamped to UInt.min (zero).
+   50|       |  /// let c = a.subtractingWithSaturation(b)
+   51|       |  /// ```
+   52|       |  ///
+   53|       |  /// Note that `a.addingWithSaturation(-b)` is not always equivalent to
+   54|       |  /// `a.subtractingWithSaturation(b)`, because `-b` is not representable
+   55|       |  /// if `b` is the minimum value of a signed type.
+   56|       |  ///
+   57|       |  /// If the "normal subtraction" `self - other` does not trap,
+   58|       |  /// this method produces the same result.
+   59|       |  @inlinable
+   60|   168k|  public func subtractingWithSaturation(_ other: Self) -> Self {
+   61|   168k|    let (wrapped, overflow) = subtractingReportingOverflow(other)
+   62|   168k|    if !overflow { return wrapped }
+   63|  49.2k|    return Self.isSigned ? Self.max &- signbit : 0
+   64|   168k|  }
+   65|       |  
+   66|       |  /// Saturating integer negation
+   67|       |  ///
+   68|       |  /// For unsigned types, the result is always zero. This is not very
+   69|       |  /// interesting, but may occasionally be useful in generic contexts.
+   70|       |  /// For signed types, the result is `-self` unless `self` is `.min`,
+   71|       |  /// in which case the result is `.max`.
+   72|       |  @inlinable
+   73|  37.8k|  public func negatedWithSaturation() -> Self {
+   74|  37.8k|    Self.zero.subtractingWithSaturation(self)
+   75|  37.8k|  }
+   76|       |  
+   77|       |  /// Saturating integer multiplication
+   78|       |  ///
+   79|       |  /// `self * other` clamped to the representable range of the type. e.g.:
+   80|       |  /// ```
+   81|       |  /// let a: Int8 = -16
+   82|       |  /// let b: Int8 = -8
+   83|       |  /// // -16 * -8 = 128 is not representable as
+   84|       |  /// // Int8, so `c` is clamped to Int8.max (127).
+   85|       |  /// let c = a.multipliedWithSaturation(by: b)
+   86|       |  /// ```
+   87|       |  ///
+   88|       |  /// If the "normal multiplication" `self * other` does not trap,
+   89|       |  /// this method produces the same result.
+   90|       |  @inlinable
+   91|   147k|  public func multipliedWithSaturation(by other: Self) -> Self {
+   92|   147k|    let (high, low) = multipliedFullWidth(by: other)
+   93|   147k|    let wrapped = Self(truncatingIfNeeded: low)
+   94|   147k|    if high == wrapped.signbit { return wrapped }
+   95|   136k|    return Self.max &- high.signbit
+   96|   147k|  }
+   97|       |    
+   98|       |  /// Bitwise left shift with rounding and saturation.
+   99|       |  ///
+  100|       |  /// `self` multiplied by the rational number 2^(`count`), saturated to the
+  101|       |  /// range `Self.min ... Self.max`, and rounded according to `rule`.
+  102|       |  ///
+  103|       |  /// See `shifted(rightBy:rounding:)`, defined on `BinaryInteger`, for more
+  104|       |  /// discussion of rounding shifts with examples.
+  105|       |  ///
+  106|       |  /// - Parameters:
+  107|       |  ///   - leftBy count: the number of bits to shift by. If positive, this is
+  108|       |  ///     a left-shift, and if negative a right shift.
+  109|       |  ///   - rounding rule: the direction in which to round if `count` is negative.
+  110|       |  @inlinable
+  111|       |  public func shiftedWithSaturation(
+  112|       |    leftBy count: Int,
+  113|       |    rounding rule: RoundingRule = .down
+  114|  74.7k|  ) -> Self {
+  115|  74.7k|    if count == 0 { return self }
+  116|  74.4k|    // If count is negative, negate it and do a right shift without
+  117|  74.4k|    // saturation instead, since we already have that implemented.
+  118|  74.4k|    guard count > 0 else {
+  119|  37.3k|      return shifted(
+  120|  37.3k|        rightBy: count.negatedWithSaturation(),
+  121|  37.3k|        rounding: rule
+  122|  37.3k|      )
+  123|  37.3k|    }
+  124|  37.0k|    let clamped = Self.max &- signbit
+  125|  37.0k|    guard count < Self.bitWidth else {
+  126|  20.4k|      // If count is bitWidth or greater, we always overflow
+  127|  20.4k|      // unless self is zero.
+  128|  20.4k|      return self == 0 ? 0 : clamped
+  129|  20.4k|    }
+  130|  16.6k|    // Now we have 0 < count < bitWidth, so we can use a nice
+  131|  16.6k|    // straightforward implementation; a shift overflows if
+  132|  16.6k|    // the complementary shift doesn't match sign-or-zero
+  133|  16.6k|    // extension. E.g.:
+  134|  16.6k|    //
+  135|  16.6k|    // - signed 0b0010_1111 << 2 overflows, because
+  136|  16.6k|    //   0b0010_1111 >> 5 is 0b0000_0001, which does not
+  137|  16.6k|    //   equal 0b0000_0000
+  138|  16.6k|    //
+  139|  16.6k|    // - unsigned 0b0010_1111 << 2 does not overflow,
+  140|  16.6k|    //   because 0b0010_0000 >> 6 is 0b0000_0000, which
+  141|  16.6k|    //   does equal 0b0000_0000.
+  142|  16.6k|    let valueBits = Self.bitWidth &- (Self.isSigned ? 1 : 0)
+  143|  16.6k|    let wrapped = self &<< count
+  144|  16.6k|    let complement = valueBits &- count
+  145|  16.6k|    return self &>> complement == signbit ? wrapped : clamped
+  146|  74.7k|  }
+  147|       |  
+  148|       |  /// Bitwise left with rounding and saturation.
+  149|       |  ///
+  150|       |  /// `self` multiplied by the rational number 2^(`count`), saturated to the
+  151|       |  /// range `Self.min ... Self.max`, and rounded according to `rule`.
+  152|       |  ///
+  153|       |  /// See `shifted(rightBy:rounding:)` for more discussion of rounding
+  154|       |  /// shifts with examples.
+  155|       |  ///
+  156|       |  /// - Parameters:
+  157|       |  ///   - leftBy count: the number of bits to shift by. If positive, this is a
+  158|       |  ///     left-shift, and if negative a right shift.
+  159|       |  ///   - rounding rule: the direction in which to round if `count` is negative.
+  160|       |  @_transparent
+  161|       |  public func shiftedWithSaturation<Count: BinaryInteger>(
+  162|       |    leftBy count: Count,
+  163|       |    rounding rule: RoundingRule = .down
+  164|  74.7k|  ) -> Self {
+  165|  74.7k|    self.shiftedWithSaturation(leftBy: Int(clamping: count), rounding: rule)
+  166|  74.7k|  }
+  167|       |}
+

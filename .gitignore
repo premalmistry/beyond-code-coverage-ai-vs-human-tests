@@ -1,0 +1,12 @@
+.DS_Store
+
+# Full upstream repo clones used as scratch workspaces while running the
+# experiments. Only the pinned commit SHA + the specific files we touched
+# (production file snapshots, AI-generated tests, mutants, results) are
+# committed to this repo -- see paper/ and experiments/. The upstream repos
+# themselves are public and cloneable at the SHAs listed in README.md.
+/swift-snapshot-testing/
+/swift-collections/
+/swift-algorithms/
+/swift-parsing/
+/swift-numerics/

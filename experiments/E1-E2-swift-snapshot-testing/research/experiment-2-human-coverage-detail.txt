@@ -1,0 +1,242 @@
+    1|       |import Foundation
+    2|       |
+    3|       |extension Snapshotting where Format == String {
+    4|       |  /// A snapshot strategy that captures a value's textual description from `String`'s
+    5|       |  /// `init(describing:)` initializer.
+    6|       |  ///
+    7|       |  /// ``` swift
+    8|       |  /// assertSnapshot(of: user, as: .description)
+    9|       |  /// ```
+   10|       |  ///
+   11|       |  /// Records:
+   12|       |  ///
+   13|       |  /// ```
+   14|       |  /// User(bio: "Blobbed around the world.", id: 1, name: "Blobby")
+   15|       |  /// ```
+   16|      0|  public static var description: Snapshotting {
+   17|      0|    return SimplySnapshotting.lines.pullback(String.init(describing:))
+   18|      0|  }
+   19|       |}
+   20|       |
+   21|       |extension Snapshotting where Format == String {
+   22|       |  /// A snapshot strategy for comparing any structure based on a sanitized text dump.
+   23|       |  ///
+   24|       |  /// The reference format looks a lot like the output of Swift's built-in `dump` function, though
+   25|       |  /// it does its best to make output deterministic by stripping out pointer memory addresses and
+   26|       |  /// sorting non-deterministic data, like dictionaries and sets.
+   27|       |  ///
+   28|       |  /// You can hook into how an instance of a type is rendered in this strategy by conforming to the
+   29|       |  /// ``AnySnapshotStringConvertible`` protocol and defining the
+   30|       |  /// ``AnySnapshotStringConvertible/snapshotDescription` property.
+   31|       |  ///
+   32|       |  /// ```swift
+   33|       |  /// assertSnapshot(of: user, as: .dump)
+   34|       |  /// ```
+   35|       |  ///
+   36|       |  /// Records:
+   37|       |  ///
+   38|       |  /// ```
+   39|       |  /// ▿ User
+   40|       |  ///   - bio: "Blobbed around the world."
+   41|       |  ///   - id: 1
+   42|       |  ///   - name: "Blobby"
+   43|       |  /// ```
+   44|       |  @available(
+   45|       |    iOS,
+   46|       |    deprecated: 9999,
+   47|       |    message: "Use '.customDump' from the 'SnapshotTestingCustomDump' module, instead."
+   48|       |  )
+   49|       |  @available(
+   50|       |    macOS,
+   51|       |    deprecated: 9999,
+   52|       |    message: "Use '.customDump' from the 'SnapshotTestingCustomDump' module, instead."
+   53|       |  )
+   54|       |  @available(
+   55|       |    tvOS,
+   56|       |    deprecated: 9999,
+   57|       |    message: "Use '.customDump' from the 'SnapshotTestingCustomDump' module, instead."
+   58|       |  )
+   59|       |  @available(
+   60|       |    watchOS,
+   61|       |    deprecated: 9999,
+   62|       |    message: "Use '.customDump' from the 'SnapshotTestingCustomDump' module, instead."
+   63|       |  )
+   64|     14|  public static var dump: Snapshotting {
+   65|     14|    return SimplySnapshotting.lines.pullback { snap($0) }
+   66|     14|  }
+   67|       |}
+   68|       |
+   69|       |@available(macOS 10.13, watchOS 4.0, tvOS 11.0, *)
+   70|       |extension Snapshotting where Format == String {
+   71|       |  /// A snapshot strategy for comparing any structure based on their JSON representation.
+   72|      0|  public static var json: Snapshotting {
+   73|      0|    let options: JSONSerialization.WritingOptions = [
+   74|      0|      .prettyPrinted,
+   75|      0|      .sortedKeys,
+   76|      0|    ]
+   77|      0|
+   78|      0|    var snapshotting = SimplySnapshotting.lines.pullback { (data: Value) in
+   79|      0|      try! String(
+   80|      0|        decoding: JSONSerialization.data(
+   81|      0|          withJSONObject: data,
+   82|      0|          options: options), as: UTF8.self)
+   83|      0|    }
+   84|      0|    snapshotting.pathExtension = "json"
+   85|      0|    return snapshotting
+   86|      0|  }
+   87|       |}
+   88|       |
+   89|       |private func snap<T>(
+   90|       |  _ value: T,
+   91|       |  name: String? = nil,
+   92|       |  indent: Int = 0,
+   93|       |  visitedValues: Set<ObjectIdentifier> = .init()
+   94|    197|) -> String {
+   95|    197|  let indentation = String(repeating: " ", count: indent)
+   96|    197|  let mirror = Mirror(reflecting: value)
+   97|    197|  var children = mirror.children
+   98|    197|  let count = children.count
+   99|    197|  let bullet = count == 0 ? "-" : "▿"
+  100|    197|  var visitedValues = visitedValues
+  101|    197|
+  102|    197|  let description: String
+  103|    197|  switch (value, mirror.displayStyle) {
+  104|    197|  case (_, .collection?):
+  105|      2|    description = count == 1 ? "1 element" : "\(count) elements"
+  106|    197|  case (_, .dictionary?):
+  107|      2|    description = count == 1 ? "1 key/value pair" : "\(count) key/value pairs"
+  108|      2|    children = sort(children, visitedValues: visitedValues)
+  109|    197|  case (_, .set?):
+  110|      2|    description = count == 1 ? "1 member" : "\(count) members"
+  111|      2|    children = sort(children, visitedValues: visitedValues)
+  112|    197|  case (_, .tuple?):
+  113|     44|    description = count == 1 ? "(1 element)" : "(\(count) elements)"
+  114|    197|  case (_, .optional?):
+  115|     38|    let subjectType = String(describing: mirror.subjectType)
+  116|     38|      .replacingOccurrences(of: " #\\d+", with: "", options: .regularExpression)
+  117|     38|    description = count == 0 ? "\(subjectType).none" : "\(subjectType)"
+  118|    197|  case (let value as AnySnapshotStringConvertible, _) where type(of: value).renderChildren:
+  119|      0|    description = value.snapshotDescription
+  120|    197|  case (let value as AnySnapshotStringConvertible, _):
+  121|     65|    return "\(indentation)- \(name.map { "\($0): " } ?? "")\(value.snapshotDescription)\n"
+  122|    197|  case (let value as CustomStringConvertible, _):
+  123|     19|    description = value.description
+  124|    197|  case let (value as AnyObject, .class?):
+  125|     14|    let objectID = ObjectIdentifier(value)
+  126|     14|    if visitedValues.contains(objectID) {
+  127|      8|      return "\(indentation)\(bullet) \(name ?? "value") (circular reference detected)\n"
+  128|      8|    }
+  129|      6|    visitedValues.insert(objectID)
+  130|      6|    description = String(describing: mirror.subjectType)
+  131|      6|      .replacingOccurrences(of: " #\\d+", with: "", options: .regularExpression)
+  132|      6|    children = sort(children, visitedValues: visitedValues)
+  133|    197|  case (_, .struct?):
+  134|     11|    description = String(describing: mirror.subjectType)
+  135|     11|      .replacingOccurrences(of: " #\\d+", with: "", options: .regularExpression)
+  136|     11|    children = sort(children, visitedValues: visitedValues)
+  137|    197|  case (_, .enum?):
+  138|      0|    let subjectType = String(describing: mirror.subjectType)
+  139|      0|      .replacingOccurrences(of: " #\\d+", with: "", options: .regularExpression)
+  140|      0|    description = count == 0 ? "\(subjectType).\(value)" : "\(subjectType)"
+  141|    197|  case (let value, _):
+  142|      0|    description = String(describing: value)
+  143|    197|  }
+  144|    124|
+  145|    124|  let lines =
+  146|    124|    ["\(indentation)\(bullet) \(name.map { "\($0): " } ?? "")\(description)\n"]
+  147|    151|    + children.map { snap($1, name: $0, indent: indent + 2, visitedValues: visitedValues) }
+  148|    124|
+  149|    124|  return lines.joined()
+  150|    197|}
+  151|       |
+  152|       |private func sort(_ children: Mirror.Children, visitedValues: Set<ObjectIdentifier>)
+  153|       |  -> Mirror.Children
+  154|     21|{
+  155|     21|  return .init(
+  156|     21|    children
+  157|     32|      .map({ (child: $0, snap: snap($0, visitedValues: visitedValues)) })
+  158|     21|      .sorted(by: { $0.snap < $1.snap })
+  159|     32|      .map({ $0.child })
+  160|     21|  )
+  161|     21|}
+  162|       |
+  163|       |/// A type with a customized snapshot dump representation.
+  164|       |///
+  165|       |/// Types that conform to the `AnySnapshotStringConvertible` protocol can provide their own
+  166|       |/// representation to be used when converting an instance to a `dump`-based snapshot.
+  167|       |public protocol AnySnapshotStringConvertible {
+  168|       |  /// Whether or not to dump child nodes (defaults to `false`).
+  169|       |  static var renderChildren: Bool { get }
+  170|       |
+  171|       |  /// A textual snapshot dump representation of this instance.
+  172|       |  var snapshotDescription: String { get }
+  173|       |}
+  174|       |
+  175|       |extension AnySnapshotStringConvertible {
+  176|     65|  public static var renderChildren: Bool {
+  177|     65|    return false
+  178|     65|  }
+  179|       |}
+  180|       |
+  181|       |extension Character: AnySnapshotStringConvertible {
+  182|      1|  public var snapshotDescription: String {
+  183|      1|    return self.debugDescription
+  184|      1|  }
+  185|       |}
+  186|       |
+  187|       |extension Data: AnySnapshotStringConvertible {
+  188|      1|  public var snapshotDescription: String {
+  189|      1|    return self.debugDescription
+  190|      1|  }
+  191|       |}
+  192|       |
+  193|       |extension Date: AnySnapshotStringConvertible {
+  194|      1|  public var snapshotDescription: String {
+  195|      1|    return snapshotDateFormatter.string(from: self)
+  196|      1|  }
+  197|       |}
+  198|       |
+  199|       |extension NSObject: AnySnapshotStringConvertible {
+  200|       |  #if canImport(ObjectiveC)
+  201|      1|    @objc open var snapshotDescription: String {
+  202|      1|      return purgePointers(self.debugDescription)
+  203|      1|    }
+  204|       |  #else
+  205|       |    open var snapshotDescription: String {
+  206|       |      return purgePointers(self.debugDescription)
+  207|       |    }
+  208|       |  #endif
+  209|       |}
+  210|       |
+  211|       |extension String: AnySnapshotStringConvertible {
+  212|     59|  public var snapshotDescription: String {
+  213|     59|    return self.debugDescription
+  214|     59|  }
+  215|       |}
+  216|       |
+  217|       |extension Substring: AnySnapshotStringConvertible {
+  218|      1|  public var snapshotDescription: String {
+  219|      1|    return self.debugDescription
+  220|      1|  }
+  221|       |}
+  222|       |
+  223|       |extension URL: AnySnapshotStringConvertible {
+  224|      1|  public var snapshotDescription: String {
+  225|      1|    return self.debugDescription
+  226|      1|  }
+  227|       |}
+  228|       |
+  229|      1|private let snapshotDateFormatter: DateFormatter = {
+  230|      1|  let formatter = DateFormatter()
+  231|      1|  formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+  232|      1|  formatter.calendar = Calendar(identifier: .gregorian)
+  233|      1|  formatter.locale = Locale(identifier: "en_US_POSIX")
+  234|      1|  formatter.timeZone = TimeZone(abbreviation: "UTC")
+  235|      1|  return formatter
+  236|      1|}()
+  237|       |
+  238|      1|func purgePointers(_ string: String) -> String {
+  239|      1|  return string.replacingOccurrences(
+  240|      1|    of: ":?\\s*0x[\\da-f]+(\\s*)", with: "$1", options: .regularExpression)
+  241|      1|}
+

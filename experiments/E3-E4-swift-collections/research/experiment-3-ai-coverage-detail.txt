@@ -1,0 +1,571 @@
+=== Heap+UnsafeHandle.swift (show) ===
+    1|       |//===----------------------------------------------------------------------===//
+    2|       |//
+    3|       |// This source file is part of the Swift Collections open source project
+    4|       |//
+    5|       |// Copyright (c) 2021 - 2026 Apple Inc. and the Swift project authors
+    6|       |// Licensed under Apache License v2.0 with Runtime Library Exception
+    7|       |//
+    8|       |// See https://swift.org/LICENSE.txt for license information
+    9|       |//
+   10|       |// SPDX-License-Identifier: Apache-2.0 WITH Swift-exception
+   11|       |//
+   12|       |//===----------------------------------------------------------------------===//
+   13|       |
+   14|       |extension Heap {
+   15|       |  @usableFromInline @frozen
+   16|       |  struct _UnsafeHandle {
+   17|       |    @usableFromInline
+   18|       |    var buffer: UnsafeMutableBufferPointer<Element>
+   19|       |
+   20|       |    @inlinable @inline(__always)
+   21|    840|    init(_ buffer: UnsafeMutableBufferPointer<Element>) {
+   22|    840|      self.buffer = buffer
+   23|    840|    }
+   24|       |  }
+   25|       |
+   26|       |  @inlinable @inline(__always)
+   27|    840|  mutating func _update<R>(_ body: (_UnsafeHandle) -> R) -> R {
+   28|    840|    _storage.withUnsafeMutableBufferPointer { buffer in
+   29|    840|      body(_UnsafeHandle(buffer))
+   30|    840|    }
+   31|    840|  }
+   32|       |}
+   33|       |
+   34|       |extension Heap._UnsafeHandle {
+   35|       |  @inlinable @inline(__always)
+   36|  10.6k|  internal var count: Int {
+   37|  10.6k|    buffer.count
+   38|  10.6k|  }
+   39|       |
+   40|       |  @inlinable
+   41|       |  subscript(node: _HeapNode) -> Element {
+   42|       |    @inline(__always)
+   43|  8.83k|    get {
+   44|  8.83k|      buffer[node.offset]
+   45|  8.83k|    }
+   46|       |    @inline(__always)
+   47|      0|    nonmutating _modify {
+   48|      0|      yield &buffer[node.offset]
+   49|      0|    }
+   50|       |  }
+   51|       |
+   52|       |  @inlinable @inline(__always)
+   53|  4.16k|  internal func ptr(to node: _HeapNode) -> UnsafeMutablePointer<Element> {
+   54|  4.16k|    assert(node.offset < count)
+   55|  4.16k|    return buffer.baseAddress! + node.offset
+   56|  4.16k|  }
+   57|       |
+   58|       |  /// Move the value at the specified node out of the buffer, leaving it
+   59|       |  /// uninitialized.
+   60|       |  @inlinable @inline(__always)
+   61|  2.08k|  internal func extract(_ node: _HeapNode) -> Element {
+   62|  2.08k|    ptr(to: node).move()
+   63|  2.08k|  }
+   64|       |
+   65|       |  @inlinable @inline(__always)
+   66|  2.08k|  internal func initialize(_ node: _HeapNode, to value: __owned Element) {
+   67|  2.08k|    ptr(to: node).initialize(to: value)
+   68|  2.08k|  }
+   69|       |
+   70|       |  /// Swaps the elements in the heap at the given indices.
+   71|       |  @inlinable @inline(__always)
+   72|    172|  internal func swapAt(_ i: _HeapNode, _ j: _HeapNode) {
+   73|    172|    buffer.swapAt(i.offset, j.offset)
+   74|    172|  }
+   75|       |
+   76|       |  /// Swaps the element at the given node with the supplied value.
+   77|       |  @inlinable @inline(__always)
+   78|    712|  internal func swapAt(_ i: _HeapNode, with value: inout Element) {
+   79|    712|    assert(i.offset < count)
+   80|    712|    let p = buffer.baseAddress.unsafelyUnwrapped + i.offset
+   81|    712|    swap(&p.pointee, &value)
+   82|    712|  }
+   83|       |
+   84|       |
+   85|       |  @inlinable @inline(__always)
+   86|  2.19k|  internal func minValue(_ a: _HeapNode, _ b: _HeapNode) -> _HeapNode {
+   87|  2.19k|    // The expression used here matches the implementation of the
+   88|  2.19k|    // standard `Swift.min(_:_:)` function. This attempts to
+   89|  2.19k|    // preserve any pre-existing order in case `T` has identity.
+   90|  2.19k|    // `(min(x, y), max(x, y))` should return `(x, y)` in case `x == y`.
+   91|  2.19k|    self[b] < self[a] ? b : a
+   92|  2.19k|  }
+   93|       |
+   94|       |  @inlinable @inline(__always)
+   95|    802|  internal func maxValue(_ a: _HeapNode, _ b: _HeapNode) -> _HeapNode {
+   96|    802|    //  In case `a` and `b` match, we need to pick `b`. See `minValue(_:_:)`.
+   97|    802|    self[b] >= self[a] ? b : a
+   98|    802|  }
+   99|       |}
+  100|       |
+  101|       |extension Heap._UnsafeHandle {
+  102|       |  @inlinable
+  103|    177|  internal func bubbleUp(_ node: _HeapNode) {
+  104|    177|    guard !node.isRoot else { return }
+  105|    167|
+  106|    167|    let parent = node.parent()
+  107|    167|
+  108|    167|    var node = node
+  109|    167|    if (node.isMinLevel && self[node] > self[parent])
+  110|    167|        || (!node.isMinLevel && self[node] < self[parent]){
+  111|     68|      swapAt(node, parent)
+  112|     68|      node = parent
+  113|     68|    }
+  114|    167|
+  115|    167|    if node.isMinLevel {
+  116|     89|      while let grandparent = node.grandParent(),
+  117|     89|            self[node] < self[grandparent] {
+  118|     63|        swapAt(node, grandparent)
+  119|     63|        node = grandparent
+  120|     89|      }
+  121|     89|    } else {
+  122|     78|      while let grandparent = node.grandParent(),
+  123|     78|            self[node] > self[grandparent] {
+  124|     41|        swapAt(node, grandparent)
+  125|     41|        node = grandparent
+  126|     78|      }
+  127|     78|    }
+  128|    167|  }
+  129|       |}
+  130|       |
+  131|       |extension Heap._UnsafeHandle {
+  132|       |  /// Sink the item at `node` to its correct position in the heap.
+  133|       |  /// The given node must be minimum-ordered.
+  134|       |  @inlinable
+  135|    704|  internal func trickleDownMin(_ node: _HeapNode) {
+  136|    704|    assert(node.isMinLevel)
+  137|    704|    var node = node
+  138|    704|    var value = extract(node)
+  139|    704|    _trickleDownMin(node: &node, value: &value)
+  140|    704|    initialize(node, to: value)
+  141|    704|  }
+  142|       |
+  143|       |  @inlinable @inline(__always)
+  144|    704|  internal func _trickleDownMin(node: inout _HeapNode, value: inout Element) {
+  145|    704|    // Note: `_HeapNode` is quite the useless abstraction here, as we don't need
+  146|    704|    // to look at its `level` property, and we need to move sideways amongst
+  147|    704|    // siblings/cousins in the tree, for which we don't have direct operations.
+  148|    704|    // Luckily, all the `_HeapNode` business gets optimized away, so this only
+  149|    704|    // affects the readability of the code, not its performance.
+  150|    704|    // The alternative would be to reintroduce offset-based parent/child
+  151|    704|    // navigation methods, which seems less palatable.
+  152|    704|
+  153|    704|    var gc0 = node.firstGrandchild()
+  154|  1.23k|    while gc0.offset &+ 3 < count {
+  155|    580|      // Invariant: buffer slot at `node` is uninitialized
+  156|    580|
+  157|    580|      // We have four grandchildren, so we don't need to compare children.
+  158|    580|      let gc1 = _HeapNode(offset: gc0.offset &+ 1, level: gc0.level)
+  159|    580|      let minA = minValue(gc0, gc1)
+  160|    580|
+  161|    580|      let gc2 = _HeapNode(offset: gc0.offset &+ 2, level: gc0.level)
+  162|    580|      let gc3 = _HeapNode(offset: gc0.offset &+ 3, level: gc0.level)
+  163|    580|      let minB = minValue(gc2, gc3)
+  164|    580|
+  165|    580|      let min = minValue(minA, minB)
+  166|    580|      guard self[min] < value else {
+  167|     54|        return // We're done -- `node` is a good place for `value`.
+  168|    526|      }
+  169|    526|
+  170|    526|      initialize(node, to: extract(min))
+  171|    526|      node = min
+  172|    526|      gc0 = node.firstGrandchild()
+  173|    526|
+  174|    526|      let parent = min.parent()
+  175|    526|      if self[parent] < value {
+  176|     40|        swapAt(parent, with: &value)
+  177|     40|      }
+  178|    650|    }
+  179|    650|
+  180|    650|    // At this point, we don't have a full complement of grandchildren, but
+  181|    650|    // we haven't finished sinking the item.
+  182|    650|
+  183|    650|    let c0 = node.leftChild()
+  184|    650|    if c0.offset >= count {
+  185|    205|      return // No more descendants to consider.
+  186|    445|    }
+  187|    445|    let min = _minDescendant(c0: c0, gc0: gc0)
+  188|    445|    guard self[min] < value else {
+  189|    240|      return // We're done.
+  190|    240|    }
+  191|    205|
+  192|    205|    initialize(node, to: extract(min))
+  193|    205|    node = min
+  194|    205|
+  195|    205|    if min < gc0 { return }
+  196|     61|
+  197|     61|    // If `min` was a grandchild, check the parent.
+  198|     61|    let parent = min.parent()
+  199|     61|    if self[parent] < value {
+  200|      9|      initialize(node, to: extract(parent))
+  201|      9|      node = parent
+  202|      9|    }
+  203|     61|  }
+  204|       |
+  205|       |  /// Returns the node holding the minimal item amongst the children &
+  206|       |  /// grandchildren of a node in the tree. The parent node is not specified;
+  207|       |  /// instead, this function takes the nodes corresponding to its first child
+  208|       |  /// (`c0`) and first grandchild (`gc0`).
+  209|       |  ///
+  210|       |  /// There must be at least one child, but there must not be a full complement
+  211|       |  /// of 4 grandchildren. (Other cases are handled directly above.)
+  212|       |  ///
+  213|       |  /// This method is an implementation detail of `trickleDownMin`. Do not call
+  214|       |  /// it directly.
+  215|       |  @inlinable
+  216|    445|  internal func _minDescendant(c0: _HeapNode, gc0: _HeapNode) -> _HeapNode {
+  217|    445|    assert(c0.offset < count)
+  218|    445|    assert(gc0.offset + 3 >= count)
+  219|    445|
+  220|    445|    if gc0.offset < count {
+  221|    136|      if gc0.offset &+ 2 < count {
+  222|     43|        // We have three grandchildren. We don't need to compare direct children.
+  223|     43|        let gc1 = _HeapNode(offset: gc0.offset &+ 1, level: gc0.level)
+  224|     43|        let gc2 = _HeapNode(offset: gc0.offset &+ 2, level: gc0.level)
+  225|     43|        return minValue(minValue(gc0, gc1), gc2)
+  226|     93|      }
+  227|     93|
+  228|     93|      let c1 = _HeapNode(offset: c0.offset &+ 1, level: c0.level)
+  229|     93|      let m = minValue(c1, gc0)
+  230|     93|      if gc0.offset &+ 1 < count {
+  231|     42|        // Two grandchildren.
+  232|     42|        let gc1 = _HeapNode(offset: gc0.offset &+ 1, level: gc0.level)
+  233|     42|        return minValue(m, gc1)
+  234|     51|      }
+  235|     51|
+  236|     51|      // One grandchild.
+  237|     51|      return m
+  238|    309|    }
+  239|    309|
+  240|    309|    let c1 = _HeapNode(offset: c0.offset &+ 1, level: c0.level)
+  241|    309|    if c1.offset < count {
+  242|    238|      return minValue(c0, c1)
+  243|    238|    }
+  244|     71|
+  245|     71|    return c0
+  246|    445|  }
+  247|       |
+  248|       |  /// Sink the item at `node` to its correct position in the heap.
+  249|       |  /// The given node must be maximum-ordered.
+  250|       |  @inlinable
+  251|    323|  internal func trickleDownMax(_ node: _HeapNode) {
+  252|    323|    assert(!node.isMinLevel)
+  253|    323|    var node = node
+  254|    323|    var value = extract(node)
+  255|    323|
+  256|    323|    _trickleDownMax(node: &node, value: &value)
+  257|    323|    initialize(node, to: value)
+  258|    323|  }
+  259|       |
+  260|       |  @inlinable @inline(__always)
+  261|    323|  internal func _trickleDownMax(node: inout _HeapNode, value: inout Element) {
+  262|    323|    // See note on `_HeapNode` in `_trickleDownMin` above.
+  263|    323|
+  264|    323|    var gc0 = node.firstGrandchild()
+  265|    467|    while gc0.offset &+ 3 < count {
+  266|    157|      // Invariant: buffer slot at `node` is uninitialized
+  267|    157|
+  268|    157|      // We have four grandchildren, so we don't need to compare children.
+  269|    157|      let gc1 = _HeapNode(offset: gc0.offset &+ 1, level: gc0.level)
+  270|    157|      let maxA = maxValue(gc0, gc1)
+  271|    157|
+  272|    157|      let gc2 = _HeapNode(offset: gc0.offset &+ 2, level: gc0.level)
+  273|    157|      let gc3 = _HeapNode(offset: gc0.offset &+ 3, level: gc0.level)
+  274|    157|      let maxB = maxValue(gc2, gc3)
+  275|    157|
+  276|    157|      let max = maxValue(maxA, maxB)
+  277|    157|      guard value < self[max] else {
+  278|     13|        return // We're done -- `node` is a good place for `value`.
+  279|    144|      }
+  280|    144|
+  281|    144|      initialize(node, to: extract(max))
+  282|    144|      node = max
+  283|    144|      gc0 = node.firstGrandchild()
+  284|    144|
+  285|    144|      let parent = max.parent()
+  286|    144|      if value < self[parent] {
+  287|     54|        swapAt(parent, with: &value)
+  288|     54|      }
+  289|    310|    }
+  290|    310|
+  291|    310|    // At this point, we don't have a full complement of grandchildren, but
+  292|    310|    // we haven't finished sinking the item.
+  293|    310|
+  294|    310|    let c0 = node.leftChild()
+  295|    310|    if c0.offset >= count {
+  296|     85|      return // No more descendants to consider.
+  297|    225|    }
+  298|    225|    let max = _maxDescendant(c0: c0, gc0: gc0)
+  299|    225|    guard value < self[max] else {
+  300|     61|      return // We're done.
+  301|    164|    }
+  302|    164|
+  303|    164|    initialize(node, to: extract(max))
+  304|    164|    node = max
+  305|    164|
+  306|    164|    if max < gc0 { return }
+  307|     16|
+  308|     16|    // If `max` was a grandchild, check the parent.
+  309|     16|    let parent = max.parent()
+  310|     16|    if value < self[parent] {
+  311|      5|      initialize(node, to: extract(parent))
+  312|      5|      node = parent
+  313|      5|    }
+  314|     16|  }
+  315|       |
+  316|       |  /// Returns the node holding the maximal item amongst the children &
+  317|       |  /// grandchildren of a node in the tree. The parent node is not specified;
+  318|       |  /// instead, this function takes the nodes corresponding to its first child
+  319|       |  /// (`c0`) and first grandchild (`gc0`).
+  320|       |  ///
+  321|       |  /// There must be at least one child, but there must not be a full complement
+  322|       |  /// of 4 grandchildren. (Other cases are handled directly above.)
+  323|       |  ///
+  324|       |  /// This method is an implementation detail of `trickleDownMax`. Do not call
+  325|       |  /// it directly.
+  326|       |  @inlinable
+  327|    225|  internal func _maxDescendant(c0: _HeapNode, gc0: _HeapNode) -> _HeapNode {
+  328|    225|    assert(c0.offset < count)
+  329|    225|    assert(gc0.offset + 3 >= count)
+  330|    225|
+  331|    225|    if gc0.offset < count {
+  332|     29|      if gc0.offset &+ 2 < count {
+  333|      9|        // We have three grandchildren. We don't need to compare direct children.
+  334|      9|        let gc1 = _HeapNode(offset: gc0.offset &+ 1, level: gc0.level)
+  335|      9|        let gc2 = _HeapNode(offset: gc0.offset &+ 2, level: gc0.level)
+  336|      9|        return maxValue(maxValue(gc0, gc1), gc2)
+  337|     20|      }
+  338|     20|
+  339|     20|      let c1 = _HeapNode(offset: c0.offset &+ 1, level: c0.level)
+  340|     20|      let m = maxValue(c1, gc0)
+  341|     20|      if gc0.offset &+ 1 < count {
+  342|      7|        // Two grandchildren.
+  343|      7|        let gc1 = _HeapNode(offset: gc0.offset &+ 1, level: gc0.level)
+  344|      7|        return maxValue(m, gc1)
+  345|     13|      }
+  346|     13|
+  347|     13|      // One grandchild.
+  348|     13|      return m
+  349|    196|    }
+  350|    196|
+  351|    196|    let c1 = _HeapNode(offset: c0.offset &+ 1, level: c0.level)
+  352|    196|    if c1.offset < count {
+  353|    163|      return maxValue(c0, c1)
+  354|    163|    }
+  355|     33|
+  356|     33|    return c0
+  357|    225|  }
+  358|       |}
+  359|       |
+  360|       |extension Heap._UnsafeHandle {
+  361|       |  @inlinable
+  362|     47|  internal func heapify() {
+  363|     47|    // This is Floyd's linear-time heap construction algorithm.
+  364|     47|    // (https://en.wikipedia.org/wiki/Heapsort#Floyd's_heap_construction).
+  365|     47|    //
+  366|     47|    // FIXME: See if a more cache friendly algorithm would be faster.
+  367|     47|
+  368|     47|    let limit = count / 2 // The first offset without a left child
+  369|     47|    var level = _HeapNode.level(forOffset: limit &- 1)
+  370|    191|    while level >= 0 {
+  371|    144|      let nodes = _HeapNode.allNodes(onLevel: level, limit: limit)
+  372|    144|      _heapify(level, nodes)
+  373|    144|      level &-= 1
+  374|    144|    }
+  375|     47|  }
+  376|       |
+  377|       |  @inlinable
+  378|    144|  internal func _heapify(_ level: Int, _ nodes: ClosedRange<_HeapNode>?) {
+  379|    144|    guard let nodes = nodes else { return }
+  380|    144|    if _HeapNode.isMinLevel(level) {
+  381|    214|      nodes._forEach { node in
+  382|    214|        trickleDownMin(node)
+  383|    214|      }
+  384|     84|    } else {
+  385|    200|      nodes._forEach { node in
+  386|    200|        trickleDownMax(node)
+  387|    200|      }
+  388|     60|    }
+  389|    144|  }
+  390|       |}
+
+
+=== _HeapNode.swift (show) ===
+    1|       |//===----------------------------------------------------------------------===//
+    2|       |//
+    3|       |// This source file is part of the Swift Collections open source project
+    4|       |//
+    5|       |// Copyright (c) 2021 - 2026 Apple Inc. and the Swift project authors
+    6|       |// Licensed under Apache License v2.0 with Runtime Library Exception
+    7|       |//
+    8|       |// See https://swift.org/LICENSE.txt for license information
+    9|       |//
+   10|       |// SPDX-License-Identifier: Apache-2.0 WITH Swift-exception
+   11|       |//
+   12|       |//===----------------------------------------------------------------------===//
+   13|       |
+   14|       |@usableFromInline @frozen
+   15|       |internal struct _HeapNode {
+   16|       |  @usableFromInline
+   17|       |  internal var offset: Int
+   18|       |
+   19|       |  @usableFromInline
+   20|       |  internal var level: Int
+   21|       |
+   22|       |  @inlinable
+   23|  7.93k|  internal init(offset: Int, level: Int) {
+   24|  7.93k|    assert(offset >= 0)
+   25|       |#if COLLECTIONS_INTERNAL_CHECKS
+   26|       |    assert(level == Self.level(forOffset: offset))
+   27|       |#endif
+   28|  7.93k|    self.offset = offset
+   29|  7.93k|    self.level = level
+   30|  7.93k|  }
+   31|       |
+   32|       |  @inlinable
+   33|    181|  internal init(offset: Int) {
+   34|    181|    self.init(offset: offset, level: Self.level(forOffset: offset))
+   35|    181|  }
+   36|       |}
+   37|       |
+   38|       |extension _HeapNode: Comparable {
+   39|       |  @inlinable @inline(__always)
+   40|      0|  internal static func ==(left: Self, right: Self) -> Bool {
+   41|      0|    left.offset == right.offset
+   42|      0|  }
+   43|       |
+   44|       |  @inlinable @inline(__always)
+   45|    513|  internal static func <(left: Self, right: Self) -> Bool {
+   46|    513|    left.offset < right.offset
+   47|    513|  }
+   48|       |}
+   49|       |
+   50|       |extension _HeapNode: CustomStringConvertible {
+   51|       |  @usableFromInline
+   52|      0|  internal var description: String {
+   53|      0|    "(offset: \(offset), level: \(level))"
+   54|      0|  }
+   55|       |}
+   56|       |
+   57|       |extension _HeapNode {
+   58|       |  @inlinable @inline(__always)
+   59|    372|  internal static func level(forOffset offset: Int) -> Int {
+   60|    372|    (offset &+ 1)._binaryLogarithm()
+   61|    372|  }
+   62|       |
+   63|       |  @inlinable @inline(__always)
+   64|    144|  internal static func firstNode(onLevel level: Int) -> _HeapNode {
+   65|    144|    assert(level >= 0)
+   66|    144|    return _HeapNode(offset: (1 &<< level) &- 1, level: level)
+   67|    144|  }
+   68|       |
+   69|       |  @inlinable @inline(__always)
+   70|    144|  internal static func lastNode(onLevel level: Int) -> _HeapNode {
+   71|    144|    assert(level >= 0)
+   72|    144|    return _HeapNode(offset: (1 &<< (level &+ 1)) &- 2, level: level)
+   73|    144|  }
+   74|       |
+   75|       |  @inlinable @inline(__always)
+   76|  1.64k|  internal static func isMinLevel(_ level: Int) -> Bool {
+   77|  1.64k|    level & 0b1 == 0
+   78|  1.64k|  }
+   79|       |}
+   80|       |
+   81|       |extension _HeapNode {
+   82|       |  /// The root node in the heap.
+   83|       |  @inlinable @inline(__always)
+   84|    491|  internal static var root: Self {
+   85|    491|    Self.init(offset: 0, level: 0)
+   86|    491|  }
+   87|       |
+   88|       |  /// The first max node in the heap. (I.e., the left child of the root.)
+   89|       |  @inlinable @inline(__always)
+   90|    135|  internal static var leftMax: Self {
+   91|    135|    Self.init(offset: 1, level: 1)
+   92|    135|  }
+   93|       |
+   94|       |  /// The second max node in the heap. (I.e., the right child of the root.)
+   95|       |  @inlinable @inline(__always)
+   96|    123|  internal static var rightMax: Self {
+   97|    123|    Self.init(offset: 2, level: 1)
+   98|    123|  }
+   99|       |
+  100|       |  @inlinable @inline(__always)
+  101|  1.50k|  internal var isMinLevel: Bool {
+  102|  1.50k|    Self.isMinLevel(level)
+  103|  1.50k|  }
+  104|       |
+  105|       |  @inlinable @inline(__always)
+  106|  1.09k|  internal var isRoot: Bool {
+  107|  1.09k|    offset == 0
+  108|  1.09k|  }
+  109|       |}
+  110|       |
+  111|       |extension _HeapNode {
+  112|       |  /// Returns the parent of this index, or `nil` if the index has no parent
+  113|       |  /// (i.e. when this is the root index).
+  114|       |  @inlinable @inline(__always)
+  115|    914|  internal func parent() -> Self {
+  116|    914|    assert(!isRoot)
+  117|    914|    return Self(offset: (offset &- 1) / 2, level: level &- 1)
+  118|    914|  }
+  119|       |
+  120|       |  /// Returns the grandparent of this index, or `nil` if the index has
+  121|       |  /// no grandparent.
+  122|       |  @inlinable @inline(__always)
+  123|    271|  internal func grandParent() -> Self? {
+  124|    271|    guard offset > 2 else { return nil }
+  125|    167|    return Self(offset: (offset &- 3) / 4, level: level &- 2)
+  126|    271|  }
+  127|       |
+  128|       |  /// Returns the left child of this node.
+  129|       |  @inlinable @inline(__always)
+  130|    960|  internal func leftChild() -> Self {
+  131|    960|    Self(offset: offset &* 2 &+ 1, level: level &+ 1)
+  132|    960|  }
+  133|       |
+  134|       |  /// Returns the right child of this node.
+  135|       |  @inlinable @inline(__always)
+  136|      0|  internal func rightChild() -> Self {
+  137|      0|    Self(offset: offset &* 2 &+ 2, level: level &+ 1)
+  138|      0|  }
+  139|       |
+  140|       |  @inlinable @inline(__always)
+  141|  1.69k|  internal func firstGrandchild() -> Self {
+  142|  1.69k|    Self(offset: offset &* 4 &+ 3, level: level &+ 2)
+  143|  1.69k|  }
+  144|       |
+  145|       |  @inlinable @inline(__always)
+  146|      0|  internal func lastGrandchild() -> Self {
+  147|      0|    Self(offset: offset &* 4 &+ 6, level: level &+ 2)
+  148|      0|  }
+  149|       |
+  150|       |  @inlinable
+  151|       |  internal static func allNodes(
+  152|       |    onLevel level: Int,
+  153|       |    limit: Int
+  154|    144|  ) -> ClosedRange<Self>? {
+  155|    144|    let first = Self.firstNode(onLevel: level)
+  156|    144|    guard first.offset < limit else { return nil }
+  157|    144|    var last = self.lastNode(onLevel: level)
+  158|    144|    if last.offset >= limit {
+  159|     26|      last.offset = limit &- 1
+  160|     26|    }
+  161|    144|    return ClosedRange(uncheckedBounds: (first, last))
+  162|    144|  }
+  163|       |}
+  164|       |
+  165|       |extension ClosedRange where Bound == _HeapNode {
+  166|       |  @inlinable @inline(__always)
+  167|    144|  internal func _forEach(_ body: (_HeapNode) -> Void) {
+  168|    144|    assert(
+  169|    144|      isEmpty || _HeapNode.level(forOffset: upperBound.offset) == lowerBound.level)
+  170|    144|    var node = self.lowerBound
+  171|    558|    while node.offset <= self.upperBound.offset {
+  172|    414|      body(node)
+  173|    414|      node.offset &+= 1
+  174|    414|    }
+  175|    144|  }
+  176|       |}
+

@@ -1,0 +1,217 @@
+\documentclass[10pt,conference]{IEEEtran}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{url}
+\usepackage{hyperref}
+
+% ============================================================
+% AUDIT-FRIENDLY SOURCE
+% Search for TODO[AUDIT-*] before submission.
+% ============================================================
+
+\title{Beyond Code Coverage: An Empirical Comparison of AI-Generated and Human-Written Unit Tests Using Mutation Testing}
+
+\author{\IEEEauthorblockN{Author(s) to be added}
+\IEEEauthorblockA{Affiliation to be added}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Large language models (LLMs) are increasingly used to generate unit tests, yet code coverage does not directly measure fault-detection capability. This paper presents a controlled empirical study comparing independently AI-generated unit tests with existing human-written tests across ten experiments drawn from five mature open-source Swift repositories. The studied components span serialization, reflection, collections, algorithms, parsing, and numerical computation. To reduce information leakage, AI suites were generated without consulting human tests, human coverage gaps, or mutation plans. Human and AI suites were frozen before mutation design, and each suite was executed against the same frozen mutant set. Across ten experiments, AI achieved the higher mutation score in six cases, human tests in three, and one experiment tied. The unweighted mean mutation score was 93.8\% for AI-generated tests and 88.8\% for human-written tests. More importantly, several experiments achieved identical coverage yet materially different mutation effectiveness. These findings suggest that AI-generated tests can complement mature human test suites, while high or even complete code coverage does not imply equivalent fault detection.
+% TODO[AUDIT-ABSTRACT-1]: Recompute all aggregates from final machine-readable results.
+\end{abstract}
+
+\begin{IEEEkeywords}
+large language models, unit testing, mutation testing, code coverage, Swift, software testing
+\end{IEEEkeywords}
+
+\section{Introduction}
+Unit testing remains a central mechanism for detecting regressions and documenting expected behavior. LLMs can now synthesize executable tests from production implementations, making automated test generation increasingly practical. Prior studies report promising coverage but also compilation failures, incorrect assertions, and weak fault detection \cite{yuan2023}.
+
+Coverage reports whether code executes, not whether assertions distinguish correct behavior from subtly faulty behavior. We therefore compare existing human-written tests against independently generated AI tests using mutation testing as an evaluation instrument rather than as generation feedback.
+
+\subsection{Contributions}
+\begin{itemize}
+\item A leakage-controlled paired methodology comparing human and independently AI-generated suites on the same production component and mutant set.
+\item Ten experiments across five open-source Swift repositories and multiple behavioral domains.
+\item Evidence that coverage and fault detection can diverge: added coverage may explain added mutant kills, but identical---even 100\%---coverage can conceal meaningful differences in mutation effectiveness.
+\end{itemize}
+
+\section{Research Questions}
+\textbf{RQ1:} How does mutation effectiveness of independently AI-generated tests compare with existing human-written tests?
+
+\textbf{RQ2:} When AI and human suites achieve similar or identical coverage, do they exhibit equivalent fault-detection capability?
+
+\textbf{RQ3:} What behavioral gaps explain suite-specific mutant kills?
+
+\textbf{RQ4:} How does suite size relate descriptively to mutation effectiveness?
+
+\section{Related Work}
+Yuan et al.\ evaluated ChatGPT for unit-test generation and reported promising results alongside correctness and compilation limitations \cite{yuan2023}. MuTAP uses surviving mutants to improve LLM-generated tests \cite{mutap2024}; MUTGEN similarly applies mutation feedback iteratively \cite{mutgen2026}. Our study differs by hiding mutations from test generation and using mutation testing only for post-generation evaluation. Recent work has also examined whether coverage and mutation scores of LLM-generated suites correlate with effectiveness \cite{zhao2026}.
+% TODO[AUDIT-RELATED-1]: Expand related work after systematic literature review.
+% TODO[AUDIT-RELATED-2]: Verify all bibliographic metadata.
+
+\section{Methodology}
+
+\subsection{Subjects}
+We selected focused components with existing human tests, deterministic SwiftPM execution, meaningful branch/boundary logic, and sufficient isolation for mutation analysis.
+
+\begin{table}[ht]
+\centering
+\caption{Experimental subjects}
+\label{tab:subjects}
+\small
+\begin{tabular}{llll}
+\toprule
+Exp. & Repository & Component & Domain \\
+\midrule
+E1 & swift-snapshot-testing & URLRequest & serialization \\
+E2 & swift-snapshot-testing & Any.swift & reflection \\
+E3 & swift-collections & Heap & data structure \\
+E4 & swift-collections & OrderedSet & collection updates \\
+E5 & swift-algorithms & Combinations & algorithms \\
+E6 & swift-algorithms & Partition & algorithms \\
+E7 & swift-parsing & Prefix & parser-printer \\
+E8 & swift-parsing & Digits & parser-printer \\
+E9 & swift-numerics & SaturatingArithmetic & integer arithmetic \\
+E10 & swift-numerics & Polar & complex geometry \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Human Baseline}
+For each component, a focused human test filter was selected and frozen before AI generation. Line, region, and function coverage were recorded. Later experiments used fully qualified filters and executed-test inventories to prevent accidental inclusion of \texttt{AIGenerated*} tests.
+% TODO[AUDIT-METHOD-1]: Verify contamination controls for E1--E4.
+
+\subsection{Independent AI Test Generation}
+The AI could inspect production implementation and APIs needed for compilation, but not human tests, fixtures, human coverage reports, uncovered-path analyses, mutation plans, or mutation results. Once passing, each AI suite was frozen and fingerprinted with SHA-256.
+% TODO[AUDIT-MODEL-1]: Add exact model/version.
+% TODO[AUDIT-MODEL-2]: Add Cursor version.
+% TODO[AUDIT-MODEL-3]: Add prompt/runbook version per experiment.
+% TODO[AUDIT-MODEL-4]: Add sampling/temperature settings if available.
+% TODO[AUDIT-MODEL-5]: Add generation timestamps.
+
+\subsection{Mutation Design and Execution}
+Mutation plans were defined only after both suites were frozen. Mutants represented observable defects such as branch inversions, comparison errors, off-by-one boundaries, wrong return values, omitted guards, sign errors, and special-case defects. The same exact mutant was executed against both frozen suites.
+
+A mutant was classified as killed when a test failed; crash and timeout kills also counted as kills. A survivor was excluded as equivalent only after code-level justification.
+
+\begin{equation}
+MS = \frac{\mathrm{killed}}{\mathrm{killed}+\mathrm{survived}}\times100
+\end{equation}
+
+\subsection{Integrity Controls}
+Production files were restored between mutants, SHA-256 fingerprints were checked, frozen suites were rerun after mutation campaigns, and tests were never changed after mutation outcomes were observed.
+% TODO[AUDIT-METHOD-2]: Add artifact repository URL.
+
+\section{Results}
+
+\begin{table}[ht]
+\centering
+\caption{Mutation effectiveness across ten experiments}
+\label{tab:results}
+\begin{tabular}{lrrl}
+\toprule
+Exp. & Human MS & AI MS & Higher \\
+\midrule
+E1 & 85.0\% & 95.0\% & AI \\
+E2 & 70.4\% & 85.2\% & AI \\
+E3 & 92.9\% & 85.7\% & Human \\
+E4 & 96.0\% & 88.0\% & Human \\
+E5 & 100.0\% & 100.0\% & Tie \\
+E6 & 90.9\% & 100.0\% & AI \\
+E7 & 91.3\% & 100.0\% & AI \\
+E8 & 91.7\% & 100.0\% & AI \\
+E9 & 96.2\% & 88.5\% & Human \\
+E10 & 73.9\% & 95.7\% & AI \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+AI achieved the higher mutation score in six experiments, human tests in three, and one tied. The unweighted mean mutation score was 93.8\% for AI and 88.8\% for human tests. These aggregates are descriptive, not population-level superiority claims.
+% TODO[AUDIT-RESULTS-1]: Recompute means from JSONL.
+% TODO[AUDIT-RESULTS-2]: Verify E1/E2 final artifacts.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\columnwidth]{figure1_mutation_scores.png}
+\caption{Mutation scores for human-written and AI-generated suites across all ten experiments.}
+\label{fig:mutation}
+\end{figure}
+
+\subsection{Identical Coverage, Different Fault Detection}
+E3, E4, and E9 provide the clearest evidence for RQ2. In E3, both suites achieved 99.03\% line coverage on the primary heap implementation, yet human tests scored 92.9\% versus 85.7\% for AI. In E4, both suites achieved identical line (82.39\%), region (78.85\%), and function (73.08\%) coverage, while human tests scored 96.0\% versus 88.0\% for AI. In E9, both suites achieved 100\% line, region, and function coverage, but human tests scored 96.2\% versus 88.5\% for AI.
+% TODO[AUDIT-RESULTS-3]: Verify "identical primary coverage" definitions per experiment.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\columnwidth]{figure2_identical_coverage_divergence.png}
+\caption{Mutation-score divergence in E3, E4, and E9 despite identical primary coverage within each experiment.}
+\label{fig:divergence}
+\end{figure}
+
+\subsection{Coverage Gaps, Mutation Gaps}
+In E6, AI covered \texttt{Sequence.partitioned} behavior omitted by the human suite and uniquely killed two polarity mutants. In E7, AI line coverage was 98.0\% versus 64.0\% for human tests and uniquely killed two printer-validation mutants. E8 similarly showed higher AI coverage (95.8\% versus 81.82\%) and two AI-only kills. In E10, AI achieved 97.06\% line coverage versus 88.24\% for human tests and killed five mutants missed by the human test.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\columnwidth]{figure3_paired_differences.png}
+\caption{Paired mutation-score difference (AI minus Human). Positive values favor AI.}
+\label{fig:difference}
+\end{figure}
+
+\subsection{Equal Coverage Can Also Coincide with Equal Effectiveness}
+E5 provides a counterexample: human and AI suites achieved identical near-complete coverage and both killed all 21 valid mutants.
+
+\subsection{Suite Size}
+AI suites were frequently larger, but larger size did not guarantee higher mutation effectiveness. E4 used 41 AI tests versus 10 human tests, yet human tests had the higher mutation score. E5 used 27 AI tests versus 4 human tests and both scored 100\%. E9 used 27 AI tests versus 10 human tests, yet human tests again had the higher mutation score.
+% TODO[AUDIT-RESULTS-4]: Add complete test/assertion count table for all experiments.
+
+\section{Discussion}
+\subsection{RQ1}
+AI tests were often strong but not uniformly superior. Six experiments favored AI, three favored human tests, and one tied. Aggregate win counts should not be interpreted as a replacement argument.
+
+\subsection{RQ2}
+Similar or identical coverage did not guarantee equivalent fault detection. E3, E4, and E9 show that suites can execute the same code while encoding different behavioral oracles.
+
+\subsection{RQ3}
+AI-only kills often arose from paths absent from human tests: untested overloads, print validation, negative values, exact boundaries, and non-finite cases. Human-only kills tended to reflect subtle semantic expectations inside already-covered paths: tie identity, capacity boundaries, and signed shift semantics.
+
+\subsection{RQ4}
+The study suggests descriptively that larger generated suites do not necessarily produce stronger mutation effectiveness. Because suite size was not controlled, no causal conclusion is warranted.
+
+\section{Threats to Validity}
+\textbf{Internal validity.} Mutation selection and equivalent-mutant classification involve researcher judgment. We mitigated post-hoc bias by freezing mutation plans before execution and requiring code-level justification for exclusions.
+
+\textbf{Construct validity.} Mutation score measures sensitivity to seeded faults, not historical real-world defects. Coverage measures execution rather than assertion quality.
+
+\textbf{External validity.} The study covers ten components from five Swift repositories and may not generalize to other languages, systems, test levels, or LLMs.
+
+\textbf{Conclusion validity.} The sample contains ten paired experiments clustered within repositories, with different mutant sets and suite sizes. Reported means and win counts are descriptive.
+
+\textbf{Reproducibility.} Repository SHAs, fingerprints, filters, coverage artifacts, mutation plans, logs, and machine-readable results were retained. Exact model/version and generation configuration must be added before submission.
+
+\section{Conclusion}
+Across ten paired experiments on five open-source Swift repositories, independently AI-generated tests frequently broadened coverage into boundary, overload, printing, and special-value behavior omitted by existing human suites. However, identical or complete coverage sometimes coexisted with materially different mutation scores. The evidence therefore supports a complementary view: AI can systematically enumerate missing behaviors, while human tests can encode precise semantic invariants. Mutation analysis provides information that code coverage alone cannot.
+
+Future work should expand the sample, control suite size, compare multiple LLMs and prompting strategies, and validate the patterns against real historical defects.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\appendices
+\section{Audit Checklist}
+\begin{enumerate}
+\item Verify all ten experiment summaries against raw JSONL outputs.
+\item Verify E1/E2 final mutation and coverage artifacts.
+\item Re-audit all invalid/equivalent mutant exclusions.
+\item Add exact AI model/version, Cursor version, prompts, and settings.
+\item Verify repository SHAs and SHA-256 fingerprints.
+\item Verify all bibliography metadata.
+\item Verify figure values against final aggregate data.
+\item Verify Human/AI test-filter disjointness for every scored experiment.
+\end{enumerate}
+
+\end{document}

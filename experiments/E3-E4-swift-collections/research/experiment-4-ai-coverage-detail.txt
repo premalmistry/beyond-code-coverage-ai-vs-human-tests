@@ -1,0 +1,329 @@
+    1|       |//===----------------------------------------------------------------------===//
+    2|       |//
+    3|       |// This source file is part of the Swift Collections open source project
+    4|       |//
+    5|       |// Copyright (c) 2021 - 2026 Apple Inc. and the Swift project authors
+    6|       |// Licensed under Apache License v2.0 with Runtime Library Exception
+    7|       |//
+    8|       |// See https://swift.org/LICENSE.txt for license information
+    9|       |//
+   10|       |// SPDX-License-Identifier: Apache-2.0 WITH Swift-exception
+   11|       |//
+   12|       |//===----------------------------------------------------------------------===//
+   13|       |
+   14|       |extension OrderedSet {
+   15|       |  /// Append a new item to the end of the set, assuming it's not already
+   16|       |  /// a member.
+   17|       |  ///
+   18|       |  /// In optimized builds, this does not check for duplicates.
+   19|       |  ///
+   20|       |  /// - Parameter item: The item to add to the set. The item must no be already
+   21|       |  ///    a member.
+   22|       |  /// - Complexity: Expected to be O(1) on average if `Element`
+   23|       |  ///    implements high-quality hashing.
+   24|       |  @inlinable
+   25|      0|  internal mutating func _appendNew(_ item: Element) {
+   26|      0|    assert(!contains(item), "Duplicate item")
+   27|      0|    _elements.append(item)
+   28|      0|    guard _elements.count <= _capacity else {
+   29|      0|      _regenerateHashTable()
+   30|      0|      return
+   31|      0|    }
+   32|      0|    guard _table != nil else { return }
+   33|      0|    _ensureUnique()
+   34|      0|    _table!.update { hashTable in
+   35|      0|      var it = hashTable.bucketIterator(for: item)
+   36|      0|      it.advanceToNextUnoccupiedBucket()
+   37|      0|      it.currentValue = _elements.count - 1
+   38|      0|    }
+   39|      0|  }
+   40|       |
+   41|       |  /// Append a new member to the end of the set, registering it in the
+   42|       |  /// specified hash table bucket, without verifying that the set
+   43|       |  /// doesn't already contain it.
+   44|       |  ///
+   45|       |  /// This operation performs no hashing operations unless it needs to
+   46|       |  /// reallocate the hash table.
+   47|       |  ///
+   48|       |  /// - Complexity: Amortized O(1)
+   49|       |  @inlinable
+   50|    322|  internal mutating func _appendNew(_ item: Element, in bucket: _Bucket) {
+   51|    322|    _elements.append(item)
+   52|    322|
+   53|    322|    guard _elements.count <= _capacity else {
+   54|     10|      _regenerateHashTable()
+   55|     10|      return
+   56|    312|    }
+   57|    312|    guard _table != nil else { return }
+   58|    235|    _ensureUnique()
+   59|    235|    _table!.update { hashTable in
+   60|    235|      assert(!hashTable.isOccupied(bucket))
+   61|    235|      hashTable[bucket] = _elements.count - 1
+   62|    235|    }
+   63|    235|  }
+   64|       |
+   65|       |  @inlinable
+   66|       |  @discardableResult
+   67|       |  internal mutating func _append(
+   68|       |    _ item: Element
+   69|    337|  ) -> (inserted: Bool, index: Int) {
+   70|    337|    let (index, bucket) = _find(item)
+   71|    337|    if let index = index { return (false, index) }
+   72|    316|    _appendNew(item, in: bucket)
+   73|    316|    return (true, _elements.index(before: _elements.endIndex))
+   74|    337|  }
+   75|       |
+   76|       |  /// Append a new member to the end of the set, if the set doesn't
+   77|       |  /// already contain it.
+   78|       |  ///
+   79|       |  /// - Parameter item: The element to add to the set.
+   80|       |  ///
+   81|       |  /// - Returns: A pair `(inserted, index)`, where `inserted` is a Boolean value
+   82|       |  ///    indicating whether the operation added a new element, and `index` is
+   83|       |  ///    the index of `item` in the resulting set.
+   84|       |  ///
+   85|       |  /// - Complexity: The operation is expected to perform O(1) copy, hash, and
+   86|       |  ///    compare operations on the `Element` type, if it implements high-quality
+   87|       |  ///    hashing.
+   88|       |  @inlinable
+   89|       |  @inline(__always)
+   90|       |  @discardableResult
+   91|    312|  public mutating func append(_ item: Element) -> (inserted: Bool, index: Int) {
+   92|    312|    let result = _append(item)
+   93|    312|    _checkInvariants()
+   94|    312|    return result
+   95|    312|  }
+   96|       |
+   97|       |  /// Append the contents of a sequence to the end of the set, excluding
+   98|       |  /// elements that are already members.
+   99|       |  ///
+  100|       |  /// This is functionally equivalent to `self.formUnion(elements)`, but it's
+  101|       |  /// more explicit about how the new members are ordered in the new set.
+  102|       |  ///
+  103|       |  /// - Parameter elements: A finite sequence of elements to append.
+  104|       |  ///
+  105|       |  /// - Complexity: The operation is expected to perform amortized O(1) copy,
+  106|       |  ///    hash, and compare operations on the `Element` type, if it implements
+  107|       |  ///    high-quality hashing.
+  108|       |  @inlinable
+  109|       |  public mutating func append(
+  110|       |    contentsOf elements: some Sequence<Element>
+  111|      5|  ) {
+  112|     21|    for item in elements {
+  113|     21|      _append(item)
+  114|     21|    }
+  115|      5|    _checkInvariants()
+  116|      5|  }
+  117|       |}
+  118|       |
+  119|       |extension OrderedSet {
+  120|       |  @inlinable
+  121|       |  internal mutating func _insertNew(
+  122|       |    _ item: Element,
+  123|       |    at index: Int,
+  124|       |    in bucket: _Bucket
+  125|    114|  ) {
+  126|    114|    guard _elements.count < _capacity else {
+  127|      3|      _elements.insert(item, at: index)
+  128|      3|      _regenerateHashTable()
+  129|      3|      return
+  130|    111|    }
+  131|    111|    guard _table != nil else {
+  132|     29|      _elements.insert(item, at: index)
+  133|     29|      return
+  134|     82|    }
+  135|     82|
+  136|     82|    _ensureUnique()
+  137|     82|    _table!.update { hashTable in
+  138|     82|      assert(!hashTable.isOccupied(bucket))
+  139|     82|      hashTable.adjustContents(preparingForInsertionOfElementAtOffset: index, in: _elements)
+  140|     82|      hashTable[bucket] = index
+  141|     82|    }
+  142|     82|    _elements.insert(item, at: index)
+  143|     82|    _checkInvariants()
+  144|     82|  }
+  145|       |
+  146|       |  /// Insert a new member to this set at the specified index, if the set doesn't
+  147|       |  /// already contain it.
+  148|       |  ///
+  149|       |  /// - Parameters:
+  150|       |  ///   - item: The element to insert.
+  151|       |  ///   - index: The index at which to insert the new element, if the set
+  152|       |  ///      doesn't already contain it. `index` must be a valid index in the
+  153|       |  ///      original set.
+  154|       |  ///
+  155|       |  /// - Returns: A pair `(inserted, index)`, where `inserted` is a Boolean value
+  156|       |  ///    indicating whether the operation added a new element, and `index` is
+  157|       |  ///    the index of `item` in the resulting set. If `inserted` is false, then
+  158|       |  ///    the returned `index` may be different from the index requested.
+  159|       |  ///
+  160|       |  /// - Complexity: The operation is expected to perform amortized
+  161|       |  ///    O(`self.count`) copy, hash, and compare operations on the `Element`
+  162|       |  ///    type, if it implements high-quality hashing. (Insertions need to make
+  163|       |  ///    room in the storage array to add the inserted element.)
+  164|       |  @inlinable
+  165|       |  @discardableResult
+  166|       |  public mutating func insert(
+  167|       |    _ item: Element,
+  168|       |    at index: Int
+  169|     33|  ) -> (inserted: Bool, index: Int) {
+  170|     33|    let (existing, bucket) = _find(item)
+  171|     33|    if let existing = existing { return (false, existing) }
+  172|     31|    _insertNew(item, at: index, in: bucket)
+  173|     31|    return (true, index)
+  174|     33|  }
+  175|       |}
+  176|       |
+  177|       |extension OrderedSet {
+  178|       |  /// Replace the member at the given index with a new value that compares equal
+  179|       |  /// to it.
+  180|       |  ///
+  181|       |  /// This is useful when equal elements can be distinguished by identity
+  182|       |  /// comparison or some other means.
+  183|       |  ///
+  184|       |  /// - Parameter item: The new value that should replace the original element.
+  185|       |  ///     `item` must compare equal to the original value.
+  186|       |  ///
+  187|       |  /// - Parameter index: The index of the element to be replaced.
+  188|       |  ///
+  189|       |  /// - Returns: The original element that was replaced.
+  190|       |  ///
+  191|       |  /// - Complexity: Amortized O(1).
+  192|       |  @inlinable
+  193|       |  @discardableResult
+  194|      3|  public mutating func update(_ item: Element, at index: Int) -> Element {
+  195|      3|    let old = _elements[index]
+  196|      3|    precondition(
+  197|      3|      item == old,
+  198|      3|      "The replacement item must compare equal to the original")
+  199|      3|    _elements[index] = item
+  200|      3|    return old
+  201|      3|  }
+  202|       |}
+  203|       |
+  204|       |extension OrderedSet {
+  205|       |  /// Replace the member at `index` with `item`, a new element that is not yet a
+  206|       |  /// member of the set, registering it in the given hash table `bucket` (as
+  207|       |  /// returned by `_find`) without verifying that it isn't present elsewhere.
+  208|       |  /// The member currently at `index` is removed and returned.
+  209|       |  ///
+  210|       |  /// Appends the new element, swaps it into `index`, then removes the old
+  211|       |  /// member from the end — each step is O(1).
+  212|       |  ///
+  213|       |  /// - Complexity: Amortized O(1)
+  214|       |  @inlinable
+  215|       |  @discardableResult
+  216|       |  internal mutating func _replaceNew(
+  217|       |    at index: Int, with item: Element, in bucket: _Bucket
+  218|      6|  ) -> Element {
+  219|      6|    _appendNew(item, in: bucket)
+  220|      6|    swapAt(index, count - 1)
+  221|      6|    return removeLast()
+  222|      6|  }
+  223|       |
+  224|       |  /// Replace the member at the given index with a new element.
+  225|       |  ///
+  226|       |  /// If `item` compares equal to the member currently at `index`, then it is
+  227|       |  /// replaced in place, leaving the set's order unchanged (as in
+  228|       |  /// `update(_:at:)`). Otherwise the original member is removed and `item`
+  229|       |  /// takes over its position:
+  230|       |  ///
+  231|       |  ///     var set: OrderedSet = [1, 2, 3]
+  232|       |  ///     let old = set.replace(at: 1, with: 4)
+  233|       |  ///     // old == 2
+  234|       |  ///     // set is now [1, 4, 3]
+  235|       |  ///
+  236|       |  /// Replacing a member with an element that is already in the set at a
+  237|       |  /// different index triggers a runtime error, as that would introduce a
+  238|       |  /// duplicate.
+  239|       |  ///
+  240|       |  /// - Parameter index: The index of the member to replace. It must be a valid
+  241|       |  ///     index below `endIndex`.
+  242|       |  ///
+  243|       |  /// - Parameter item: The element to place at `index`. It must not already be
+  244|       |  ///     a member of the set, unless it compares equal to the member currently
+  245|       |  ///     at `index`.
+  246|       |  ///
+  247|       |  /// - Returns: The original member that was replaced.
+  248|       |  ///
+  249|       |  /// - Complexity: Expected amortized O(1), if `Element` implements
+  250|       |  ///     high-quality hashing.
+  251|       |  @inlinable
+  252|       |  @discardableResult
+  253|      7|  public mutating func replace(at index: Int, with item: Element) -> Element {
+  254|      7|    precondition(index >= 0 && index < count, "Index out of bounds")
+  255|      7|    defer { _checkInvariants() }
+  256|      7|    let (existing, bucket) = _find(item)
+  257|      7|
+  258|      7|    // The new element compares equal to the one already at `index` — replace
+  259|      7|    // it in place. Its hash table bucket is unchanged, so no rehash is needed.
+  260|      7|    if existing == index {
+  261|      1|      return update(item, at: index)
+  262|      6|    }
+  263|      6|
+  264|      6|    precondition(existing == nil, "Duplicate element")
+  265|      6|    return _replaceNew(at: index, with: item, in: bucket)
+  266|      7|  }
+  267|       |}
+  268|       |
+  269|       |extension OrderedSet {
+  270|       |  /// Adds the given element to the set unconditionally, either appending it to
+  271|       |  /// the set, or replacing an existing value if it's already present.
+  272|       |  ///
+  273|       |  /// This is useful when equal elements can be distinguished by identity
+  274|       |  /// comparison or some other means.
+  275|       |  ///
+  276|       |  /// - Parameter item: The value to append or replace.
+  277|       |  ///
+  278|       |  /// - Returns: The original element that was replaced by this operation, or
+  279|       |  ///    `nil` if the value was appended to the end of the collection.
+  280|       |  ///
+  281|       |  /// - Complexity: The operation is expected to perform amortized O(1) copy,
+  282|       |  ///    hash, and compare operations on the `Element` type, if it implements
+  283|       |  ///    high-quality hashing.
+  284|       |  @inlinable
+  285|       |  @discardableResult
+  286|      4|  public mutating func updateOrAppend(_ item: Element) -> Element? {
+  287|      4|    let (inserted, index) = _append(item)
+  288|      4|    if inserted { return nil }
+  289|      2|    let old = _elements[index]
+  290|      2|    _elements[index] = item
+  291|      2|    _checkInvariants()
+  292|      2|    return old
+  293|      4|  }
+  294|       |
+  295|       |  /// Adds the given element into the set unconditionally, either inserting it
+  296|       |  /// at the specified index, or replacing an existing value if it's already
+  297|       |  /// present.
+  298|       |  ///
+  299|       |  /// This is useful when equal elements can be distinguished by identity
+  300|       |  /// comparison or some other means.
+  301|       |  ///
+  302|       |  /// - Parameter item: The value to append or replace.
+  303|       |  ///
+  304|       |  /// - Parameter index: The index at which to insert the new member if `item`
+  305|       |  ///    isn't already in the set.
+  306|       |  ///
+  307|       |  /// - Returns: The original element that was replaced by this operation, or
+  308|       |  ///    `nil` if the value was newly inserted into the collection.
+  309|       |  ///
+  310|       |  /// - Complexity: The operation is expected to perform amortized O(1) copy,
+  311|       |  ///    hash, and compare operations on the `Element` type, if it implements
+  312|       |  ///    high-quality hashing.
+  313|       |  @inlinable
+  314|       |  @discardableResult
+  315|       |  public mutating func updateOrInsert(
+  316|       |    _ item: Element,
+  317|       |    at index: Int
+  318|     85|  ) -> (originalMember: Element?, index: Int) {
+  319|     85|    let (existing, bucket) = _find(item)
+  320|     85|    if let existing = existing {
+  321|      2|      let old = _elements[existing]
+  322|      2|      _elements[existing] = item
+  323|      2|      return (old, existing)
+  324|     83|    }
+  325|     83|    _insertNew(item, at: index, in: bucket)
+  326|     83|    return (nil, index)
+  327|     85|  }
+  328|       |}
+

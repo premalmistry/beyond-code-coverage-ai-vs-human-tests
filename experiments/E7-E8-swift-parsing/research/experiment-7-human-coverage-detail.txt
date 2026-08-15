@@ -1,0 +1,199 @@
+    1|       |/// A parser that consumes a subsequence from the beginning of its input.
+    2|       |///
+    3|       |/// This parser is named after `Sequence.prefix`, which it uses under the hood to consume a number
+    4|       |/// of elements and return them as output. It can be configured with minimum and maximum lengths,
+    5|       |/// as well as a predicate.
+    6|       |///
+    7|       |/// For example, to parse as many numbers off the beginning of a substring:
+    8|       |///
+    9|       |/// ```swift
+   10|       |/// var input = "123 hello world"[...]
+   11|       |/// try Prefix { $0.isNumber }.parse(&input)  // "123"
+   12|       |/// input                                     // " Hello world"
+   13|       |/// ```
+   14|       |///
+   15|       |/// If you wanted this parser to fail if _no_ numbers are consumed, you could introduce a minimum
+   16|       |/// length.
+   17|       |///
+   18|       |/// ```swift
+   19|       |/// var input = "No numbers here"[...]
+   20|       |/// try Prefix(1...) { $0.isNumber }.parse(&input)
+   21|       |/// // error: unexpected input
+   22|       |/// //  --> input:1:1
+   23|       |/// // 1 | No numbers here
+   24|       |/// //   | ^ expected 1 element satisfying predicate
+   25|       |/// ```
+   26|       |///
+   27|       |/// If a predicate is not provided, the parser will simply consume the prefix within the minimum and
+   28|       |/// maximum lengths provided:
+   29|       |///
+   30|       |/// ```swift
+   31|       |/// var input = "Lorem ipsum dolor"[...]
+   32|       |/// try Prefix(2).parse(&input)  // "Lo"
+   33|       |/// input                        // "rem ipsum dolor"
+   34|       |/// ```
+   35|       |///
+   36|       |/// ## Printer
+   37|       |///
+   38|       |/// ``Prefix`` is also a printer when its `Input` generic conforms to ``PrependableCollection``,
+   39|       |/// such as `Substring` and `UTF8View`:
+   40|       |///
+   41|       |/// ```swift
+   42|       |/// Prefix { $0 != "," }.print("Hello World") // "Hello World"
+   43|       |/// ```
+   44|       |///
+   45|       |/// It fails to print if the collection being printed does not meet the `minLength` and `maxLength`
+   46|       |/// requirements, or if the predicate provided is not satisfied on every element of the collection:
+   47|       |///
+   48|       |/// ```swift
+   49|       |/// Prefix { $0 != "," }.print("Hello, World")
+   50|       |/// // An error was thrown and was not caught
+   51|       |/// ```
+   52|       |public struct Prefix<Input: Collection>: Parser where Input.SubSequence == Input {
+   53|       |  public let maximum: Int?
+   54|       |  public let minimum: Int
+   55|       |  public let predicate: ((Input.Element) -> Bool)?
+   56|       |
+   57|       |  /// Initializes a parser that consumes a subsequence from the beginning of its input.
+   58|       |  ///
+   59|       |  /// ```swift
+   60|       |  /// try Prefix(1...) { $0.isNumber }.parse("123456")  // "123456"
+   61|       |  ///
+   62|       |  /// try Prefix(1...) { $0.isNumber }.parse("")
+   63|       |  /// // error: unexpected input
+   64|       |  /// //  --> input:1:1
+   65|       |  /// // 1 |
+   66|       |  /// //   | ^ expected 1 more element satisfying predicate
+   67|       |  /// ```
+   68|       |  ///
+   69|       |  /// - Parameters:
+   70|       |  ///   - length: A length that provides a minimum number and maximum of elements to consume for
+   71|       |  ///     parsing to be considered successful.
+   72|       |  ///   - predicate: An optional closure that takes an element of the input sequence as its argument
+   73|       |  ///     and returns `true` if the element should be included or `false` if it should be excluded.
+   74|       |  ///     Once the predicate returns `false` it will not be called again.
+   75|       |  @inlinable
+   76|     10|  public init<R: CountingRange>(_ length: R, while predicate: ((Input.Element) -> Bool)? = nil) {
+   77|     10|    self.minimum = length.minimum
+   78|     10|    self.maximum = length.maximum
+   79|     10|    self.predicate = predicate
+   80|     10|  }
+   81|       |
+   82|       |  /// Initializes a parser that consumes a subsequence from the beginning of its input.
+   83|       |  ///
+   84|       |  /// ```swift
+   85|       |  /// try Prefix { $0.isNumber }.parse("123456")  // "123456"
+   86|       |  /// ```
+   87|       |  ///
+   88|       |  /// - Parameters:
+   89|       |  ///   - predicate: An closure that takes an element of the input sequence as its argument and
+   90|       |  ///     returns `true` if the element should be included or `false` if it should be excluded. Once
+   91|       |  ///     the predicate returns `false` it will not be called again.
+   92|       |  @inlinable
+   93|      3|  public init(while predicate: @escaping (Input.Element) -> Bool) {
+   94|      3|    self.minimum = 0
+   95|      3|    self.maximum = nil
+   96|      3|    self.predicate = predicate
+   97|      3|  }
+   98|       |
+   99|       |  @inlinable
+  100|       |  @inline(__always)
+  101|     11|  public func parse(_ input: inout Input) throws -> Input {
+  102|     17|    var prefix = self.maximum.map(input.prefix) ?? input
+  ------------------
+  | $s7Parsing6PrefixV5parseyxxzKFxSicxncfu_:
+  |  102|     11|    var prefix = self.maximum.map(input.prefix) ?? input
+  ------------------
+  | $s7Parsing6PrefixV5parseyxxzKFxSicxncfu_xSicfu0_:
+  |  102|      6|    var prefix = self.maximum.map(input.prefix) ?? input
+  ------------------
+  103|     11|    prefix = self.predicate.map { prefix.prefix(while: $0) } ?? prefix
+  104|     11|    let count = prefix.count
+  105|     11|    input.removeFirst(count)
+  106|     11|    guard count >= self.minimum else {
+  107|      3|      let atLeast = self.minimum - count
+  108|      3|      throw ParsingError.expectedInput(
+  109|      3|        """
+  110|      3|        \(self.minimum - count) \(count == 0 ? "" : "more ")element\(atLeast == 1 ? "" : "s")\
+  111|      3|        \(self.predicate == nil ? "" : " satisfying predicate")
+  112|      3|        """,
+  113|      3|        at: input
+  114|      3|      )
+  115|      8|    }
+  116|      8|    return prefix
+  117|     11|  }
+  118|       |}
+  119|       |
+  120|       |extension Prefix: ParserPrinter where Input: PrependableCollection {
+  121|       |  @inlinable
+  122|      2|  public func print(_ output: Input, into input: inout Input) throws {
+  123|      2|    let count = output.count
+  124|      2|    guard count >= self.minimum
+  125|      2|    else {
+  126|      0|      let description = describe(input).map { "\n\n\($0.debugDescription)" } ?? ""
+  127|      0|      throw PrintingError.failed(
+  128|      0|        summary: """
+  129|      0|          round-trip expectation failed
+  130|      0|
+  131|      0|          A "Prefix" parser that parses at least \(self.minimum) \
+  132|      0|          element\(self.minimum == 1 ? "" : "s") was given only \(count) \
+  133|      0|          element\(count == 1 ? "" : "s") to print.\(description)
+  134|      0|          """,
+  135|      0|        input: input
+  136|      0|      )
+  137|      2|    }
+  138|      2|    if let maximum = self.maximum {
+  139|      1|      guard count <= maximum
+  140|      1|      else {
+  141|      0|        let description = describe(input).map { "\n\n\($0.debugDescription)" } ?? ""
+  142|      0|        throw PrintingError.failed(
+  143|      0|          summary: """
+  144|      0|            round-trip expectation failed
+  145|      0|
+  146|      0|            A "Prefix" parser that parses at most \(maximum) element\(maximum == 1 ? "" : "s") was \
+  147|      0|            given \(count) element\(count == 1 ? "" : "s") to print.\(description)
+  148|      0|            """,
+  149|      0|          input: input
+  150|      0|        )
+  151|      1|      }
+  152|      2|    }
+  153|      2|    if let predicate = self.predicate {
+  154|      2|      guard output.allSatisfy(predicate)
+  155|      2|      else {
+  156|      0|        throw PrintingError.failed(
+  157|      0|          summary: """
+  158|      0|            round-trip expectation failed
+  159|      0|
+  160|      0|            A "Prefix" parser's predicate failed to satisfy all elements it was handed to print.
+  161|      0|
+  162|      0|            During a round-trip, the "Prefix" parser would have stopped parsing at this element, \
+  163|      0|            which means its data is in an invalid state.
+  164|      0|            """,
+  165|      0|          input: input
+  166|      0|        )
+  167|      2|      }
+  168|      2|      if count != maximum {
+  169|      1|        guard input.first.map(predicate) != true
+  170|      1|        else {
+  171|      1|          throw PrintingError.failed(
+  172|      1|            summary: """
+  173|      1|              round-trip expectation failed
+  174|      1|
+  175|      1|              A "Prefix" parser's predicate satisfied the first element printed by the next printer.
+  176|      1|
+  177|      1|              During a round-trip, the "Prefix" parser would have parsed this element, which means \
+  178|      1|              the data handed to the next printer is in an invalid state.
+  179|      1|              """,
+  180|      1|            input: input
+  181|      1|          )
+  182|      1|        }
+  183|      1|      }
+  184|      1|    }
+  185|      1|    input.prepend(contentsOf: output)
+  186|      1|  }
+  187|       |}
+  188|       |
+  189|       |extension Parsers {
+  190|       |  public typealias Prefix = Parsing.Prefix  // NB: Convenience type alias for discovery
+  191|       |}
+

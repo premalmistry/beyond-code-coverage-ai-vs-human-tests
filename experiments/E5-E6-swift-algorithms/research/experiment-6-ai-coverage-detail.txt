@@ -1,0 +1,390 @@
+    1|       |//===----------------------------------------------------------------------===//
+    2|       |//
+    3|       |// This source file is part of the Swift Algorithms open source project
+    4|       |//
+    5|       |// Copyright (c) 2020-2021 Apple Inc. and the Swift project authors
+    6|       |// Licensed under Apache License v2.0 with Runtime Library Exception
+    7|       |//
+    8|       |// See https://swift.org/LICENSE.txt for license information
+    9|       |//
+   10|       |//===----------------------------------------------------------------------===//
+   11|       |
+   12|       |//===----------------------------------------------------------------------===//
+   13|       |// stablePartition(by:)
+   14|       |//===----------------------------------------------------------------------===//
+   15|       |
+   16|       |extension MutableCollection {
+   17|       |  /// Moves all elements satisfying `belongsInSecondPartition` into a suffix of
+   18|       |  /// the collection, preserving their relative order, and returns the start of
+   19|       |  /// the resulting suffix.
+   20|       |  ///
+   21|       |  /// - Complexity: O(*n* log *n*), where *n* is the number of elements.
+   22|       |  /// - Precondition:
+   23|       |  ///   `n == distance(from: range.lowerBound, to: range.upperBound)`
+   24|       |  @inlinable
+   25|       |  internal mutating func stablePartition(
+   26|       |    count n: Int,
+   27|       |    subrange: Range<Index>,
+   28|       |    by belongsInSecondPartition: (Element) throws -> Bool
+   29|    320|  ) rethrows -> Index {
+   30|    320|    if n == 0 { return subrange.lowerBound }
+   31|    314|    if n == 1 {
+   32|    177|      return try belongsInSecondPartition(self[subrange.lowerBound])
+   33|    177|        ? subrange.lowerBound
+   34|    177|        : subrange.upperBound
+   35|    177|    }
+   36|    137|
+   37|    137|    let h = n / 2
+   38|    137|    let i = index(subrange.lowerBound, offsetBy: h)
+   39|    137|    let j = try stablePartition(
+   40|    137|      count: h,
+   41|    137|      subrange: subrange.lowerBound..<i,
+   42|    137|      by: belongsInSecondPartition)
+   43|    137|    let k = try stablePartition(
+   44|    137|      count: n - h,
+   45|    137|      subrange: i..<subrange.upperBound,
+   46|    137|      by: belongsInSecondPartition)
+   47|    137|    return rotate(subrange: j..<k, toStartAt: i)
+   48|    320|  }
+   49|       |
+   50|       |  /// Moves all elements satisfying the given predicate into a suffix of the
+   51|       |  /// given range, preserving the relative order of the elements in both
+   52|       |  /// partitions, and returns the start of the resulting suffix.
+   53|       |  ///
+   54|       |  /// - Parameters:
+   55|       |  ///   - subrange: The range of elements within this collection to partition.
+   56|       |  ///   - belongsInSecondPartition: A predicate used to partition the
+   57|       |  ///     collection. All elements satisfying this predicate are ordered after
+   58|       |  ///     all elements not satisfying it.
+   59|       |  /// - Returns: The pivot index `p`, which is the index of the first element
+   60|       |  ///   in the reordered collection that matches `belongsInSecondPartition`.
+   61|       |  ///   If no elements in the collection match `belongsInSecondPartition`, the
+   62|       |  ///   returned index is equal to the collection's `endIndex`.
+   63|       |  ///
+   64|       |  /// - Complexity: O(*n* log *n*), where *n* is the length of this collection.
+   65|       |  @inlinable
+   66|       |  public mutating func stablePartition(
+   67|       |    subrange: Range<Index>,
+   68|       |    by belongsInSecondPartition: (Element) throws -> Bool
+   69|     46|  ) rethrows -> Index {
+   70|     46|    try stablePartition(
+   71|     46|      count: distance(from: subrange.lowerBound, to: subrange.upperBound),
+   72|     46|      subrange: subrange,
+   73|     46|      by: belongsInSecondPartition)
+   74|     46|  }
+   75|       |
+   76|       |  /// Moves all elements satisfying the given predicate into a suffix of this
+   77|       |  /// collection, preserving the relative order of the elements in both
+   78|       |  /// partitions, and returns the start of the resulting suffix.
+   79|       |  ///
+   80|       |  /// - Parameter belongsInSecondPartition: A predicate used to partition the
+   81|       |  ///   collection. All elements satisfying this predicate are ordered after
+   82|       |  ///   all elements not satisfying it.
+   83|       |  /// - Returns: The pivot index `p`, which is the index of the first element
+   84|       |  ///   in the reordered collection that matches `belongsInSecondPartition`.
+   85|       |  ///   If no elements in the collection match `belongsInSecondPartition`, the
+   86|       |  ///   returned index is equal to the collection's `endIndex`.
+   87|       |  ///
+   88|       |  /// - Complexity: O(*n* log *n*), where *n* is the length of this collection.
+   89|       |  @inlinable
+   90|       |  public mutating func stablePartition(
+   91|       |    by belongsInSecondPartition: (Element) throws -> Bool
+   92|     44|  ) rethrows -> Index {
+   93|     44|    try stablePartition(
+   94|     44|      subrange: startIndex..<endIndex,
+   95|     44|      by: belongsInSecondPartition)
+   96|     44|  }
+   97|       |}
+   98|       |
+   99|       |//===----------------------------------------------------------------------===//
+  100|       |// partition(by:)
+  101|       |//===----------------------------------------------------------------------===//
+  102|       |
+  103|       |extension MutableCollection {
+  104|       |  /// Moves all elements satisfying the given closure into a suffix of the
+  105|       |  /// collection, returning the start position of the resulting suffix.
+  106|       |  ///
+  107|       |  /// After partitioning a collection, there is a pivot index `p` where no
+  108|       |  /// element before `p` satisfies the `belongsInSecondPartition` predicate and
+  109|       |  /// every element at or after `p` satisfies `belongsInSecondPartition`. This
+  110|       |  /// operation isn't guaranteed to be stable, so the relative ordering of
+  111|       |  /// elements within the partitions might change.
+  112|       |  ///
+  113|       |  /// - Parameters:
+  114|       |  ///   - subrange: The range of elements within this collection to partition.
+  115|       |  ///   - belongsInSecondPartition: A predicate used to partition the
+  116|       |  ///     collection. All elements satisfying this predicate are ordered after
+  117|       |  ///     all elements not satisfying it.
+  118|       |  /// - Returns: The pivot index `p`, which is the index of the first element
+  119|       |  ///   in the reordered collection that matches `belongsInSecondPartition`.
+  120|       |  ///   If no elements in the collection match `belongsInSecondPartition`, the
+  121|       |  ///   returned index is equal to the collection's `endIndex`.
+  122|       |  ///
+  123|       |  /// - Complexity: O(*n*) where n is the length of the collection.
+  124|       |  @inlinable
+  125|       |  public mutating func partition(
+  126|       |    subrange: Range<Index>,
+  127|       |    by belongsInSecondPartition: (Element) throws -> Bool
+  128|      3|  ) rethrows -> Index {
+  129|      3|    // This version of `partition(subrange:)` is half stable; the elements in
+  130|      3|    // the first partition retain their original relative order.
+  131|      3|    guard var i = try self[subrange].firstIndex(where: belongsInSecondPartition)
+  132|      3|    else { return subrange.upperBound }
+  133|      2|
+  134|      2|    var j = index(after: i)
+  135|      8|    while j != subrange.upperBound {
+  136|      6|      if try !belongsInSecondPartition(self[j]) {
+  137|      3|        swapAt(i, j)
+  138|      3|        formIndex(after: &i)
+  139|      3|      }
+  140|      6|      formIndex(after: &j)
+  141|      6|    }
+  142|      2|
+  143|      2|    return i
+  144|      3|  }
+  145|       |}
+  146|       |
+  147|       |extension MutableCollection where Self: BidirectionalCollection {
+  148|       |  /// Moves all elements satisfying the given closure into a suffix of the
+  149|       |  /// collection, returning the start position of the resulting suffix.
+  150|       |  ///
+  151|       |  /// After partitioning a collection, there is a pivot index `p` where no
+  152|       |  /// element before `p` satisfies the `belongsInSecondPartition` predicate and
+  153|       |  /// every element at or after `p` satisfies `belongsInSecondPartition`. This
+  154|       |  /// operation isn't guaranteed to be stable, so the relative ordering of
+  155|       |  /// elements within the partitions might change.
+  156|       |  ///
+  157|       |  /// - Parameters:
+  158|       |  ///   - subrange: The range of elements within this collection to partition.
+  159|       |  ///   - belongsInSecondPartition: A predicate used to partition the
+  160|       |  ///     collection. All elements satisfying this predicate are ordered after
+  161|       |  ///     all elements not satisfying it.
+  162|       |  /// - Returns: The pivot index `p`, which is the index of the first element
+  163|       |  ///   in the reordered collection that matches `belongsInSecondPartition`.
+  164|       |  ///   If no elements in the collection match `belongsInSecondPartition`, the
+  165|       |  ///   returned index is equal to the collection's `endIndex`.
+  166|       |  ///
+  167|       |  /// - Complexity: O(*n*) where n is the length of the collection.
+  168|       |  @inlinable
+  169|       |  public mutating func partition(
+  170|       |    subrange: Range<Index>,
+  171|       |    by belongsInSecondPartition: (Element) throws -> Bool
+  172|      2|  ) rethrows -> Index {
+  173|      2|    var lo = subrange.lowerBound
+  174|      2|    var hi = subrange.upperBound
+  175|      2|
+  176|      2|    // 'Loop' invariants (at start of Loop, all are true):
+  177|      2|    // * lo < hi
+  178|      2|    // * predicate(self[i]) == false, for i in startIndex ..< lo
+  179|      2|    // * predicate(self[i]) == true, for i in hi ..< endIndex
+  180|      2|
+  181|      3|    Loop: while true {
+  182|      3|      FindLo: do {
+  183|      7|        while lo < hi {
+  184|      5|          if try belongsInSecondPartition(self[lo]) { break FindLo }
+  185|      4|          formIndex(after: &lo)
+  186|      4|        }
+  187|      2|        break Loop
+  188|      3|      }
+  189|      1|
+  190|      1|      FindHi: do {
+  191|      1|        formIndex(before: &hi)
+  192|      2|        while lo < hi {
+  193|      2|          if try !belongsInSecondPartition(self[hi]) { break FindHi }
+  194|      1|          formIndex(before: &hi)
+  195|      1|        }
+  196|      0|        break Loop
+  197|      1|      }
+  198|      1|
+  199|      1|      swapAt(lo, hi)
+  200|      1|      formIndex(after: &lo)
+  201|      2|    }
+  202|      2|
+  203|      2|    return lo
+  204|      2|  }
+  205|       |}
+  206|       |
+  207|       |//===----------------------------------------------------------------------===//
+  208|       |// partitioningIndex(where:)
+  209|       |//===----------------------------------------------------------------------===//
+  210|       |
+  211|       |extension Collection {
+  212|       |  /// Returns the start index of the partition of a collection that matches
+  213|       |  /// the given predicate.
+  214|       |  ///
+  215|       |  /// The collection must already be partitioned according to the predicate.
+  216|       |  /// That is, there should be an index `i` where for every element in
+  217|       |  /// `collection[..<i]` the predicate is `false`, and for every element in
+  218|       |  /// `collection[i...]` the predicate is `true`.
+  219|       |  ///
+  220|       |  /// - Parameter belongsInSecondPartition: A predicate that partitions the
+  221|       |  ///   collection.
+  222|       |  /// - Returns: The index of the first element in the collection for which
+  223|       |  ///   `predicate` returns `true`, or `endIndex` if there are no elements
+  224|       |  ///   for which `predicate` returns `true`.
+  225|       |  ///
+  226|       |  /// - Complexity: O(log *n*), where *n* is the length of this collection if
+  227|       |  ///   the collection conforms to `RandomAccessCollection`, otherwise O(*n*).
+  228|       |  @inlinable
+  229|       |  public func partitioningIndex(
+  230|       |    where belongsInSecondPartition: (Element) throws -> Bool
+  231|     41|  ) rethrows -> Index {
+  232|     41|    var n = count
+  233|     41|    var l = startIndex
+  234|     41|
+  235|    127|    while n > 0 {
+  236|     86|      let half = n / 2
+  237|     86|      let mid = index(l, offsetBy: half)
+  238|     86|      if try belongsInSecondPartition(self[mid]) {
+  239|     55|        n = half
+  240|     55|      } else {
+  241|     31|        l = index(after: mid)
+  242|     31|        n -= half + 1
+  243|     31|      }
+  244|     86|    }
+  245|     41|    return l
+  246|     41|  }
+  247|       |}
+  248|       |
+  249|       |//===----------------------------------------------------------------------===//
+  250|       |// partitioned(by:)
+  251|       |//===----------------------------------------------------------------------===//
+  252|       |
+  253|       |extension Sequence {
+  254|       |  /// Returns two arrays containing the elements of the sequence that
+  255|       |  /// don’t and do satisfy the given predicate, respectively.
+  256|       |  ///
+  257|       |  /// In this example, `partitioned(by:)` is used to separate the input based on
+  258|       |  /// whether a name is shorter than five characters:
+  259|       |  ///
+  260|       |  ///     let cast = ["Vivien", "Marlon", "Kim", "Karl"]
+  261|       |  ///     let (longNames, shortNames) = cast.partitioned(by: { $0.count < 5 })
+  262|       |  ///     print(longNames)
+  263|       |  ///     // Prints "["Vivien", "Marlon"]"
+  264|       |  ///     print(shortNames)
+  265|       |  ///     // Prints "["Kim", "Karl"]"
+  266|       |  ///
+  267|       |  /// - Parameter predicate: A closure that takes an element of the sequence as
+  268|       |  ///   its argument and returns a Boolean value indicating whether the element
+  269|       |  ///   should be included in the second returned array. Otherwise, the element
+  270|       |  ///   will appear in the first returned array.
+  271|       |  /// - Returns: Two arrays with all of the elements of the receiver. The
+  272|       |  ///   first array contains all the elements that `predicate` didn’t allow, and
+  273|       |  ///   the second array contains all the elements that `predicate` allowed. The
+  274|       |  ///   order of the elements in the arrays matches the order of the elements in
+  275|       |  ///   the original sequence.
+  276|       |  ///
+  277|       |  /// - Complexity: O(*n*), where *n* is the length of the sequence.
+  278|       |  @inlinable
+  279|       |  public func partitioned(
+  280|       |    by predicate: (Element) throws -> Bool
+  281|      2|  ) rethrows -> (falseElements: [Element], trueElements: [Element]) {
+  282|      2|    var lhs: [Element] = []
+  283|      2|    var rhs: [Element] = []
+  284|      2|
+  285|      4|    for element in self {
+  286|      4|      if try predicate(element) {
+  287|      2|        rhs.append(element)
+  288|      2|      } else {
+  289|      2|        lhs.append(element)
+  290|      2|      }
+  291|      4|    }
+  292|      2|
+  293|      2|    return (lhs, rhs)
+  294|      2|  }
+  295|       |}
+  296|       |
+  297|       |extension Collection {
+  298|       |  /// Returns two arrays containing the elements of the collection that
+  299|       |  /// don’t and do satisfy the given predicate, respectively.
+  300|       |  ///
+  301|       |  /// In this example, `partitioned(by:)` is used to separate the input based on
+  302|       |  /// whether a name is shorter than five characters.
+  303|       |  ///
+  304|       |  ///     let cast = ["Vivien", "Marlon", "Kim", "Karl"]
+  305|       |  ///     let (longNames, shortNames) = cast.partitioned(by: { $0.count < 5 })
+  306|       |  ///     print(longNames)
+  307|       |  ///     // Prints "["Vivien", "Marlon"]"
+  308|       |  ///     print(shortNames)
+  309|       |  ///     // Prints "["Kim", "Karl"]"
+  310|       |  ///
+  311|       |  /// - Parameter predicate: A closure that takes an element of the collection
+  312|       |  ///   as its argument and returns a Boolean value indicating whether the
+  313|       |  ///   element should be included in the second returned array. Otherwise, the
+  314|       |  ///   element will appear in the first returned array.
+  315|       |  /// - Returns: Two arrays with all of the elements of the receiver. The
+  316|       |  ///   first array contains all the elements that `predicate` didn’t allow, and
+  317|       |  ///   the second array contains all the elements that `predicate` allowed. The
+  318|       |  ///   order of the elements in the arrays matches the order of the elements in
+  319|       |  ///   the original collection.
+  320|       |  ///
+  321|       |  /// - Complexity: O(*n*), where *n* is the length of the collection.
+  322|       |  @inlinable
+  323|       |  public func partitioned(
+  324|       |    by predicate: (Element) throws -> Bool
+  325|      6|  ) rethrows -> (falseElements: [Element], trueElements: [Element]) {
+  326|      6|    guard !self.isEmpty else {
+  327|      1|      return ([], [])
+  328|      5|    }
+  329|      5|
+  330|      5|    // Since collections have known sizes, we can allocate one array of size
+  331|      5|    // `self.count`, then insert items at the beginning or end of that contiguous
+  332|      5|    // block. This way, we don’t have to do any dynamic array resizing. Since we
+  333|      5|    // insert the right elements on the right side in reverse order, we need to
+  334|      5|    // reverse them back to the original order at the end.
+  335|      5|
+  336|      5|    let count = self.count
+  337|      5|
+  338|      5|    // Inside of the `initializer` closure, we set what the actual mid-point is.
+  339|      5|    // We will use this to partition the single array into two.
+  340|      5|    var midPoint: Int = 0
+  341|      5|
+  342|      5|    let elements = try [Element](
+  343|      5|      unsafeUninitializedCapacity: count,
+  344|      5|      initializingWith: { buffer, initializedCount in
+  345|      5|        // swift-format-ignore: NeverForceUnwrap
+  346|      5|        // Non-empty check above.
+  347|      5|        let bufferStart = buffer.baseAddress!
+  348|      5|        var lhs = bufferStart
+  349|      5|        var rhs = lhs + buffer.count
+  350|      5|        do {
+  351|     25|          for element in self {
+  352|     25|            if try predicate(element) {
+  353|     12|              rhs -= 1
+  354|     12|              rhs.initialize(to: element)
+  355|     13|            } else {
+  356|     13|              lhs.initialize(to: element)
+  357|     13|              lhs += 1
+  358|     13|            }
+  359|     25|          }
+  360|      5|
+  361|      5|          precondition(
+  362|      5|            lhs == rhs,
+  363|      5|            """
+  364|      0|            Collection's `count` differed from the number of elements iterated.
+  365|      0|            """
+  366|      5|          )
+  367|      5|
+  368|      5|          let rhsIndex = rhs - bufferStart
+  369|      5|          buffer[rhsIndex...].reverse()
+  370|      5|          initializedCount = buffer.count
+  371|      5|
+  372|      5|          midPoint = rhsIndex
+  373|      5|        } catch {
+  374|      0|          let lhsCount = lhs - bufferStart
+  375|      0|          let rhsCount = (bufferStart + buffer.count) - rhs
+  376|      0|          bufferStart.deinitialize(count: lhsCount)
+  377|      0|          rhs.deinitialize(count: rhsCount)
+  378|      0|          throw error
+  379|      5|        }
+  380|      5|      })
+  381|      5|
+  382|      5|    let lhs = elements[..<midPoint]
+  383|      5|    let rhs = elements[midPoint...]
+  384|      5|    return (
+  385|      5|      Array(lhs),
+  386|      5|      Array(rhs)
+  387|      5|    )
+  388|      6|  }
+  389|       |}
+

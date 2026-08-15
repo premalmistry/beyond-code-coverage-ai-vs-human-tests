@@ -1,0 +1,191 @@
+    1|       |/// A parser that consumes a number of digits from the beginning of a collection of UTF-8 code
+    2|       |/// units.
+    3|       |///
+    4|       |/// Useful for processing simple numbers into integers.
+    5|       |///
+    6|       |/// ```swift
+    7|       |/// try Digits().parse("123")  // 123
+    8|       |/// ```
+    9|       |///
+   10|       |/// `Digits` can be configured with a length of input to parse, making it a more surgical tool than
+   11|       |/// <doc:Int> parsers, which will parse an entire number all at once.
+   12|       |///
+   13|       |/// For example, you may want to parse a `YYYYMMDD` date format. You could do so using `Digits`:
+   14|       |///
+   15|       |/// ```swift
+   16|       |/// struct Date { var year, month, day: Int }
+   17|       |///
+   18|       |/// Parse(Date.init(year:month:day:)) {
+   19|       |///   Digits(4)
+   20|       |///   Digits(2)
+   21|       |///   Digits(2)
+   22|       |/// }
+   23|       |/// .parse("20220131")  // Date(year: 2022, month: 1, day: 31)
+   24|       |/// ```
+   25|       |public struct Digits<Length: CountingRange, InputToBytes: Conversion>: Parser
+   26|       |where
+   27|       |  InputToBytes.Input: Collection,
+   28|       |  InputToBytes.Input.SubSequence == InputToBytes.Input,
+   29|       |  InputToBytes.Output: Collection,
+   30|       |  InputToBytes.Output.Element == UTF8.CodeUnit,
+   31|       |  InputToBytes.Output.SubSequence == InputToBytes.Output
+   32|       |{
+   33|       |  @usableFromInline
+   34|       |  let length: Length
+   35|       |
+   36|       |  @usableFromInline
+   37|       |  let inputToBytes: InputToBytes
+   38|       |
+   39|       |  @usableFromInline
+   40|     11|  init(length: Length, inputToBytes: InputToBytes) {
+   41|     11|    self.length = length
+   42|     11|    self.inputToBytes = inputToBytes
+   43|     11|  }
+   44|       |
+   45|       |  @inlinable
+   46|      5|  public func parse(_ input: inout InputToBytes.Input) throws -> Int {
+   47|      5|    var bytes = try self.inputToBytes.apply(input)
+   48|      5|
+   49|      5|    @inline(__always)
+   50|     12|    func digit(for n: UTF8.CodeUnit) -> Int? {
+   51|     12|      switch n {
+   52|     12|      case .init(ascii: "0") ... .init(ascii: "9"):
+   53|     11|        return Int(n - .init(ascii: "0"))
+   54|     12|      default:
+   55|      1|        return nil
+   56|     12|      }
+   57|     12|    }
+   58|      5|    var length = 0
+   59|      5|    var iterator = bytes.makeIterator()
+   60|      5|    var overflow = false
+   61|      5|    var output = 0
+   62|      5|    let original = input
+   63|      5|    @inline(__always)
+   64|      5|    func digitsError() -> ParsingError {
+   65|      2|      ParsingError.expectedInput(
+   66|      2|        """
+   67|      2|        \(self.length.minimum == self.length.maximum ? "" : "at least ")\(self.length.minimum) \
+   68|      2|        digit\(self.length.minimum == 1 ? "" : "s")
+   69|      2|        """,
+   70|      2|        from: original,
+   71|      2|        to: input
+   72|      2|      )
+   73|      2|    }
+   74|     16|    while self.length.maximum.map({ length < $0 }) ?? true,
+   75|      5|      let next = iterator.next(),
+   76|      5|      let n = digit(for: next)
+   77|     11|    {
+   78|     11|      bytes.removeFirst()
+   79|     11|      (output, overflow) = output.multipliedReportingOverflow(by: 10)
+   80|     11|      @inline(__always)
+   81|     11|      func overflowError() -> ParsingError {
+   82|      0|        ParsingError.failed(
+   83|      0|          summary: "failed to process integer from digits",
+   84|      0|          label: "overflowed \(Int.max)",
+   85|      0|          from: original,
+   86|      0|          to: input
+   87|      0|        )
+   88|      0|      }
+   89|     11|      guard !overflow else { throw overflowError() }
+   90|     11|      (output, overflow) = output.addingReportingOverflow(n)
+   91|     11|      guard !overflow else { throw overflowError() }
+   92|     11|      length += 1
+   93|     11|    }
+   94|      5|    guard length >= self.length.minimum
+   95|      5|    else { throw digitsError() }
+   96|      3|
+   97|      3|    input = try self.inputToBytes.unapply(bytes)
+   98|      3|    return output
+   99|      5|  }
+  100|       |}
+  101|       |
+  102|       |extension Digits: ParserPrinter
+  103|       |where
+  104|       |  InputToBytes.Input: PrependableCollection,
+  105|       |  InputToBytes.Output: PrependableCollection
+  106|       |{
+  107|       |  @inlinable
+  108|      6|  public func print(_ output: Int, into input: inout InputToBytes.Input) throws {
+  109|      6|    guard self.length.minimum != 0 || output != 0
+  110|      6|    else { return }
+  111|      5|
+  112|      5|    guard output >= 0
+  113|      5|    else {
+  114|      0|      throw PrintingError.failed(
+  115|      0|        summary: """
+  116|      0|          round-trip expectation failed
+  117|      0|
+  118|      0|          A "Digits" parser tried to print \(output). "Digits" parsers cannot parse or print \
+  119|      0|          negative numbers.
+  120|      0|          """,
+  121|      0|        input: input
+  122|      0|      )
+  123|      5|    }
+  124|      5|
+  125|      5|    var bytes = InputToBytes.Output(String(output).utf8)
+  126|      5|    let count = bytes.count
+  127|      5|
+  128|      5|    if let maximum = self.length.maximum, count > maximum {
+  129|      1|      throw PrintingError.failed(
+  130|      1|        summary: """
+  131|      1|          round-trip expectation failed
+  132|      1|
+  133|      1|          A "Digits" parser configured to parse at most \(maximum) digit\(maximum == 1 ? "" : "s") \
+  134|      1|          tried to print \(output) (\(count) digit\(count == 1 ? "" : "s")).
+  135|      1|          """,
+  136|      1|        input: input
+  137|      1|      )
+  138|      4|    }
+  139|      4|
+  140|      4|    for _ in 0..<max(0, self.length.minimum - count) {
+  141|      2|      bytes.prepend(.init(ascii: "0"))
+  142|      4|    }
+  143|      4|
+  144|      4|    input.prepend(contentsOf: try self.inputToBytes.unapply(bytes))
+  145|      4|  }
+  146|       |}
+  147|       |
+  148|       |extension Digits {
+  149|       |  @inlinable
+  150|       |  public init<C>()
+  151|       |  where
+  152|       |    Length == PartialRangeFrom<Int>,
+  153|       |    InputToBytes == Conversions.Identity<C>
+  154|      0|  {
+  155|      0|    self.init(1...)
+  156|      0|  }
+  157|       |
+  158|       |  @inlinable
+  159|      3|  public init<C>(_ length: Length) where InputToBytes == Conversions.Identity<C> {
+  160|      3|    self.init(length: length, inputToBytes: .init())
+  161|      3|  }
+  162|       |}
+  163|       |
+  164|       |extension Digits where InputToBytes == Conversions.SubstringToUTF8View {
+  165|       |  @_disfavoredOverload
+  166|       |  @inlinable
+  167|      1|  public init() where Length == PartialRangeFrom<Int> {
+  168|      1|    self.init(1...)
+  169|      1|  }
+  170|       |
+  171|       |  @_disfavoredOverload
+  172|       |  @inlinable
+  173|      8|  public init(_ length: Length) {
+  174|      8|    self.init(length: length, inputToBytes: .init())
+  175|      8|  }
+  176|       |}
+  177|       |
+  178|       |extension Digits where InputToBytes == Conversions.Identity<Substring.UTF8View> {
+  179|       |  @_disfavoredOverload
+  180|       |  @inlinable
+  181|      0|  public init() where Length == PartialRangeFrom<Int> {
+  182|      0|    self.init(1...)
+  183|      0|  }
+  184|       |
+  185|       |  @_disfavoredOverload
+  186|       |  @inlinable
+  187|      0|  public init(_ length: Length) {
+  188|      0|    self.init(length)
+  189|      0|  }
+  190|       |}
+

@@ -1,0 +1,131 @@
+    1|       |//===--- Polar.swift ------------------------------------------*- swift -*-===//
+    2|       |//
+    3|       |// This source file is part of the Swift Numerics open source project
+    4|       |//
+    5|       |// Copyright (c) 2019-2025 Apple Inc. and the Swift Numerics project authors
+    6|       |// Licensed under Apache License v2.0 with Runtime Library Exception
+    7|       |//
+    8|       |// See https://swift.org/LICENSE.txt for license information
+    9|       |//
+   10|       |//===----------------------------------------------------------------------===//
+   11|       |
+   12|       |import RealModule
+   13|       |
+   14|       |extension Complex {
+   15|       |  /// The Euclidean norm (a.k.a. 2-norm).
+   16|       |  ///
+   17|       |  /// This property takes care to avoid spurious over- or underflow in
+   18|       |  /// this computation. For example:
+   19|       |  ///
+   20|       |  ///     let x: Float = 3.0e+20
+   21|       |  ///     let x: Float = 4.0e+20
+   22|       |  ///     let naive = sqrt(x*x + y*y) // +Inf
+   23|       |  ///     let careful = Complex(x, y).length // 5.0e+20
+   24|       |  ///
+   25|       |  /// Note that it *is* still possible for this property to overflow,
+   26|       |  /// because the length can be as much as sqrt(2) times larger than
+   27|       |  /// either component, and thus may not be representable in the real type.
+   28|       |  ///
+   29|       |  /// For most use cases, you can use the cheaper ``magnitude``
+   30|       |  /// property (which computes the ∞-norm) instead, which always produces
+   31|       |  /// a representable result. See <doc:Magnitude> for more details.
+   32|       |  ///
+   33|       |  /// Edge cases:
+   34|       |  /// - If a complex value is not finite, its `length` is `infinity`.
+   35|       |  ///
+   36|       |  /// See also ``lengthSquared``, ``phase``, ``polar``
+   37|       |  /// and ``init(length:phase:)``.
+   38|       |  @_transparent
+   39|     22|  public var length: RealType {
+   40|     22|    let naive = lengthSquared
+   41|     22|    guard naive.isNormal else { return carefulLength }
+   42|     14|    return .sqrt(naive)
+   43|     22|  }
+   44|       |  
+   45|       |  //  Internal implementation detail of ``length``, moving slow path off
+   46|       |  //  of the inline function. Note that even `carefulLength` can overflow
+   47|       |  //  for finite inputs, but only when the result is outside the range
+   48|       |  //  of representable values.
+   49|       |  @usableFromInline
+   50|      8|  internal var carefulLength: RealType {
+   51|      8|    guard isFinite else { return .infinity }
+   52|      4|    return .hypot(x, y)
+   53|      8|  }
+   54|       |  
+   55|       |  /// The squared length `(real*real + imaginary*imaginary)`.
+   56|       |  ///
+   57|       |  /// This property is more efficient to compute than ``length``, but is
+   58|       |  /// highly prone to overflow or underflow; for finite values that are
+   59|       |  /// not well-scaled, `lengthSquared` is often either zero or
+   60|       |  /// infinity, even when `length` is a finite number. Use this property
+   61|       |  /// only when you are certain that this value is well-scaled.
+   62|       |  ///
+   63|       |  /// For many cases, ``magnitude`` can be used instead, which is similarly
+   64|       |  /// cheap to compute and always returns a representable value.
+   65|       |  ///
+   66|       |  /// Note that because of how `lengthSquared` is used, it is a primary
+   67|       |  /// design goal that it be as fast as possible. Therefore, it does not
+   68|       |  /// normalize infinities, and may return either `.infinity` or `.nan`
+   69|       |  /// for non-finite values.
+   70|       |  @_transparent
+   71|     25|  public var lengthSquared: RealType {
+   72|     25|    x*x + y*y
+   73|     25|  }
+   74|       |  
+   75|       |  /// The phase (angle, or "argument").
+   76|       |  ///
+   77|       |  /// - Returns: The angle (measured above the real axis) in radians. If
+   78|       |  /// the complex value is zero or infinity, the phase is not defined,
+   79|       |  /// and `nan` is returned.
+   80|       |  ///
+   81|       |  /// See also ``length``, ``polar`` and ``init(length:phase:)``.
+   82|       |  @inlinable
+   83|     19|  public var phase: RealType {
+   84|     19|    guard isFinite && !isZero else { return .nan }
+   85|     13|    return .atan2(y: y, x: x)
+   86|     19|  }
+   87|       |  
+   88|       |  /// The length and phase (or polar coordinates) of this value.
+   89|       |  ///
+   90|       |  /// Edge cases:
+   91|       |  /// - If the complex value is zero or non-finite, phase is `.nan`.
+   92|       |  /// - If the complex value is non-finite, length is `.infinity`.
+   93|       |  ///
+   94|       |  /// See also: ``length``, ``phase`` and ``init(length:phase:)``.
+   95|      3|  public var polar: (length: RealType, phase: RealType) {
+   96|      3|    (length, phase)
+   97|      3|  }
+   98|       |  
+   99|       |  /// Creates a complex value specified with polar coordinates.
+  100|       |  ///
+  101|       |  /// Edge cases:
+  102|       |  /// - Negative lengths are interpreted as reflecting the point through the
+  103|       |  ///   origin, i.e.:
+  104|       |  ///   ```
+  105|       |  ///   Complex(length: -r, phase: θ) == -Complex(length: r, phase: θ)
+  106|       |  ///   ```
+  107|       |  /// - For any `θ`, even `.infinity` or `.nan`:
+  108|       |  ///   ```
+  109|       |  ///   Complex(length: .zero, phase: θ) == .zero
+  110|       |  ///   ```
+  111|       |  /// - For any `θ`, even `.infinity` or `.nan`, if `r` is infinite then:
+  112|       |  ///   ```
+  113|       |  ///   Complex(length: r, phase: θ) == .infinity
+  114|       |  ///   ```
+  115|       |  /// - Otherwise, `θ` must be finite, or a precondition failure occurs.
+  116|       |  ///
+  117|       |  /// See also ``length``, ``phase`` and ``polar``.
+  118|       |  @inlinable
+  119|     21|  public init(length: RealType, phase: RealType) {
+  120|     21|    if phase.isFinite {
+  121|     12|      self = Complex(.cos(phase), .sin(phase)).multiplied(by: length)
+  122|     12|    } else {
+  123|      9|      precondition(
+  124|      9|        length.isZero || length.isInfinite,
+  125|      9|        "Either phase must be finite, or length must be zero or infinite."
+  126|      9|      )
+  127|      9|      self = Complex(length)
+  128|      9|    }
+  129|     21|  }
+  130|       |}
+
