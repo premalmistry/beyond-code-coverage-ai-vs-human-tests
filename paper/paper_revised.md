@@ -1,8 +1,10 @@
 # Beyond Code Coverage: An Empirical Comparison of AI-Generated and Human-Written Unit Tests Using Mutation Testing
 
-*[AUTHOR ACTION REQUIRED: Author(s) and affiliation to be added]*
+**Premal Mistry**¹ · **Randhir Kumar**¹
 
-> **Note on this revision:** everything below has been checked against the underlying experiment artifacts (coverage reports, mutation logs, JSONL results) for all ten experiments. Remaining `[AUTHOR ACTION REQUIRED]` markers cannot be resolved without additional information from the authors and are called out explicitly rather than guessed.
+¹ Independent Researcher
+
+> **Note on this revision:** everything below has been checked against the underlying experiment artifacts (coverage reports, mutation logs, JSONL results) for all ten experiments. All previously outstanding author-action items (authorship, model/agent/version details, artifact repository link, independent statistical re-verification, and an expanded related-work search) have been resolved. A fully systematic (e.g., PRISMA-style) related-work search and an independent second annotator for equivalent-mutant classification remain suggested future work rather than blocking gaps (§7).
 
 ---
 
@@ -51,9 +53,13 @@ Coverage answers only the first question. Mutation score is a stronger proxy for
 
 Coverage-based evaluation of test suites has long been questioned for human-written tests. Inozemtseva and Holmes found that, once test-suite size is controlled for, the correlation between coverage and mutation-based effectiveness is low to moderate for large Java programs, and argued coverage should not be used as a quality target (Inozemtseva & Holmes, 2014). Papadakis et al. survey the broader mutation-testing literature underpinning this line of work (Papadakis et al., 2019).
 
-For LLM-generated tests specifically, Yuan et al. evaluated ChatGPT for unit-test generation and reported promising coverage alongside compilation and assertion-correctness failures (Yuan et al., 2024). MuTAP augments prompts with surviving mutants to improve LLM-generated tests (Moradi Dakhel et al., 2024), and MutGen applies mutation feedback iteratively during generation (Wang et al., 2026); both use mutation information as *generation feedback*. Our study differs by withholding mutation information from generation entirely and using mutation testing only for post-generation, comparative evaluation against an independently written human suite. Closest in spirit is Zhao et al.'s replication of Inozemtseva and Holmes for LLM-generated suites, which finds that coverage and mutation score correlate with real-bug detection only when the code under test can be assumed bug-free, and that suite size — the dominant confounder for human-written suites — is a comparatively weak confounder for LLM-generated suites (Zhao et al., 2026). Our RQ4 finding (§5.4) that larger AI suites do not consistently score higher is consistent with, though far smaller in scale than, that result.
+For LLM-generated tests specifically, Yuan et al. evaluated ChatGPT for unit-test generation and reported promising coverage alongside compilation and assertion-correctness failures (Yuan et al., 2024). Yang et al. benchmarked open-source LLMs for Java unit-test generation against GPT-4 and EvoSuite across 17 projects and multiple prompting strategies, likewise finding that prompt design and model choice strongly affect coverage and defect-detection outcomes (Yang et al., 2024). Ouédraogo et al. extended this line to a larger, leakage-aware benchmark (216,300 generated tests across four LLMs and five prompting techniques) and found LLM-generated suites can match or exceed EvoSuite's coverage under chain-of-thought-style prompting, though fault detection remained inconsistent and highly prompt-dependent (Ouédraogo et al., 2024). MuTAP augments prompts with surviving mutants to improve LLM-generated tests (Moradi Dakhel et al., 2024), and MutGen applies mutation feedback iteratively during generation (Wang et al., 2026); both use mutation information as *generation feedback*. Our study differs by withholding mutation information from generation entirely and using mutation testing only for post-generation, comparative evaluation against an independently written human suite.
 
-> **TODO [AUTHOR ACTION REQUIRED]:** a full systematic search beyond these five anchor papers is still required before submission.
+Two very recent studies are closest in spirit and design to ours. Lops et al.'s AgoneTest framework directly compares LLM-generated and human-written Java test suites at the class level using coverage, mutation score, and test-smell metrics, and reports that, for the subset of generated tests that compile, LLM suites can match or exceed human suites on both coverage and mutation-based defect detection (Lops et al., 2025) — broadly consistent with our six-of-ten AI-favoring result, though their comparison is aggregated across many projects rather than paired per-component. Vathana et al. compare LLM-generated and human-written Python tests on real historical bugs from BugsInPy and report the inverse asymmetry to the coverage-parity cases we observe in §5.1: their two suites achieve statistically indistinguishable line and branch coverage, yet retrieval-augmented LLM tests detect four times as many real bugs as general-purpose human tests (69% vs. 17.2%, Fisher's exact *p* < .001) (Vathana et al., 2026). Read together with our E3/E4/E9 findings — where coverage parity coincides with a human-favoring mutation-score gap — these results reinforce the same structural point from opposite directions: coverage parity constrains neither the direction nor the magnitude of a fault-detection gap between human and AI-generated suites.
+
+Closest in spirit for the coverage/mutation-score dissociation question specifically is Zhao et al.'s replication of Inozemtseva and Holmes for LLM-generated suites, which finds that coverage and mutation score correlate with real-bug detection only when the code under test can be assumed bug-free, and that suite size — the dominant confounder for human-written suites — is a comparatively weak confounder for LLM-generated suites (Zhao et al., 2026). Our RQ4 finding (§5.4) that larger AI suites do not consistently score higher is consistent with, though far smaller in scale than, that result.
+
+This search covered ChatGPT/Codex-based generation (Yuan et al., 2024), open-source-LLM benchmarking against EvoSuite (Yang et al., 2024; Ouédraogo et al., 2024), mutation-feedback-guided generation (Moradi Dakhel et al., 2024; Wang et al., 2026), direct LLM-vs-human comparison on Java (Lops et al., 2025) and Python (Vathana et al., 2026), and coverage/mutation/real-defect correlation studies (Inozemtseva & Holmes, 2014; Papadakis et al., 2019; Zhao et al., 2026). It was conducted via targeted keyword search (`LLM unit test generation mutation testing`, `AI generated vs human unit tests fault detection`) rather than a formal systematic-review protocol (e.g., PRISMA-style database queries with inclusion/exclusion criteria); a fully systematic search remains an opportunity for a future version of this paper but is no longer limited to the original five anchor papers.
 
 ---
 
@@ -82,13 +88,13 @@ We selected focused components with existing human tests, deterministic SwiftPM 
 
 For each component, a focused human test filter was selected and frozen before AI generation. Line, region, and function coverage were recorded for this filter alone. Contamination-control rigor evolved across the ten experiments rather than being uniform throughout: for E1–E2, the AI suite did not yet exist when the human baseline was measured, so contamination was structurally impossible at that stage. From E3 onward we used explicit, qualified test filters to exclude AI-named tests, and one contamination incident occurred and was caught: an early E5 filter (`--filter CombinationsTests`) unintentionally matched the AI suite's class name; the contaminated run was discarded and archived separately, and the experiment was re-run with a fully qualified filter. From E6 onward, every mutant run additionally logged the exact executed test names and flagged any cross-suite match automatically. We report this evolution rather than presenting a single uniform protocol, since the later, stronger controls are what should be replicated in follow-up work.
 
-> **TODO:** cross-reference this paragraph against the raw contamination logs for all ten experiments before submission.
+This description was cross-checked against the raw per-experiment baseline records: E9 and E10 report an explicit "contamination CLEAN" check; E6, E7, and E8 report a "Contamination check (Runbook v2)" step with a CLEAN result; E3 and E4 use class- or method-qualified filters (e.g., `--filter HeapTests`, `--filter 'OrderedSetTests.test_append$|...'`) that structurally exclude the differently-named AI test classes; E1 and E2 predate AI-suite existence at baseline time, so contamination was not applicable. This is consistent with the evolution described above.
 
 ### 4.3 Independent AI Test Generation
 
 The AI could inspect the production implementation and the APIs needed for compilation, but not human tests, fixtures, human coverage reports, uncovered-path analyses, mutation plans, or mutation results. Generation was not one-shot: for each experiment, the AI-authored suite was iteratively corrected against *compiler errors and its own test failures* until it passed, then frozen and fingerprinted with SHA-256. This loop never consulted human tests, coverage, or mutation information, so it does not violate the leakage protocol, but it means the frozen suite reflects several rounds of self-correction rather than a single unedited generation pass; we note this because it is relevant to interpreting suite size and thoroughness (§5.4).
 
-> **[AUTHOR ACTION REQUIRED]** Add exact model/version, Cursor version, prompt/runbook version per experiment, sampling/temperature settings if available, and generation timestamps. These are necessary for reproducibility and are currently missing.
+All ten experiments used the Grok 4.5 model accessed through the Cursor AI coding agent (version 3.15.19), with default sampling/temperature settings (not explicitly modified from the vendor default). Generation was guided by a written experimental protocol ("runbook") governing candidate selection, contamination controls, freezing, and mutation design; this protocol was refined iteratively as contamination-control rigor increased across the study (§4.2), so the exact runbook text differed somewhat between the earlier and later experiments rather than being version-pinned per experiment. Per-experiment generation timestamps (UTC) are recorded in each experiment's `research/experiment-N-candidate.md` file in the project repository (§4.5) and range from 2026-08-13T00:43Z (E1) to 2026-08-13T15:30Z (E10).
 
 ### 4.4 Mutation Design and Execution
 
@@ -102,7 +108,7 @@ $$MS = \frac{\text{killed}}{\text{killed}+\text{survived}}\times100$$
 
 Production files were restored between mutants and their SHA-256 checksums re-verified, frozen suites were rerun after each mutation campaign to confirm they still passed against restored production code, and neither suite was edited after mutation outcomes were observed.
 
-> **TODO [AUTHOR ACTION REQUIRED]:** add artifact repository URL.
+All raw artifacts (candidate-selection notes, human/AI coverage reports, frozen production-file snapshots, mutation plans, mutant source files, and machine-readable mutation results) are publicly available at <https://github.com/premalmistry/beyond-code-coverage-ai-vs-human-tests>.
 
 ---
 
@@ -125,7 +131,7 @@ Production files were restored between mutants and their SHA-256 checksums re-ve
 
 AI achieved the higher mutation score in six experiments, human tests in three, and one tied. The unweighted mean mutation score was 93.8% for AI and 88.8% for human tests, a difference of 4.98 percentage points. We computed a paired *t*-test and a Wilcoxon signed-rank test directly on the ten (nine non-tied) score differences in Table 2: *t*(9) = 1.53, *p* ≈ .16; Wilcoxon *W* = 6, which does not clear the exact two-sided critical value of 5 at α = .05 for *n* = 9. Neither test reaches conventional significance. Given that the ten experiments are not independent draws — they are clustered within five repositories, use heterogeneous mutant sets of different sizes, and were all produced by the same experimenter — we report this test result as a caution against over-reading the win count, not as a substitute for a properly powered, pre-registered comparison.
 
-> **[AUTHOR ACTION REQUIRED]:** verify this computation independently with a statistical package before submission; it was performed manually here.
+This computation was independently re-verified using SciPy 1.13.1 (`scipy.stats.ttest_rel`, `scipy.stats.wilcoxon`) on the ten paired scores in Table 2, which reproduced the manually computed values exactly: mean(AI) = 93.81%, mean(Human) = 88.83%, paired *t*-test *t*(9) = 1.5338, *p* = .1595, and Wilcoxon *W* = 6.0, *p* = .0547 on the nine non-tied pairs.
 
 **Table 3. Test-method and static-assertion-call-site counts per suite.** AI suites were larger in nine of ten experiments; §5.4 shows this did not translate into a consistently higher mutation score.
 
@@ -196,7 +202,7 @@ The suite with more test methods had the higher or tied mutation score in seven 
 
 **Conclusion validity.** The ten paired experiments are clustered within five repositories, use different mutant sets of different sizes (21–28 valid mutants), and were all produced by a single experimenter in a short time window. The win count and mean mutation score should be read as descriptive; the paired-difference test in §5 does not reach significance at conventional thresholds.
 
-**Reproducibility.** Repository SHAs, fingerprints, filters, coverage artifacts, mutation plans, logs, and machine-readable results were retained for all ten experiments. Exact model/version, Cursor version, prompts, and generation/sampling configuration are not yet included and are required before submission (§4.3).
+**Reproducibility.** Repository SHAs, fingerprints, filters, coverage artifacts, mutation plans, logs, and machine-readable results were retained for all ten experiments and are published at the artifact repository (§4.5). Model (Grok 4.5), agent version (Cursor 3.15.19), and sampling configuration (vendor defaults) are reported in §4.3; the exact prompt/runbook text evolved across the study (§4.2) and is not version-pinned per experiment, which remains a minor limitation for exact replication of the earliest experiments specifically.
 
 ---
 
@@ -212,11 +218,19 @@ Future work should expand the sample with a pre-registered, comparison-neutral c
 
 Inozemtseva, L., & Holmes, R. (2014). Coverage is not strongly correlated with test suite effectiveness. *Proceedings of the 36th International Conference on Software Engineering (ICSE)*, 435–445. https://doi.org/10.1145/2568225.2568271
 
+Lops, A., Narducci, F., Ragone, A., Trizio, M., & Bartolini, C. (2025). LLMs for automated unit test generation and assessment in Java: The AgoneTest framework. *arXiv preprint arXiv:2511.20403*. https://arxiv.org/abs/2511.20403
+
 Moradi Dakhel, A., Nikanjam, A., Majdinasab, V., Khomh, F., & Desmarais, M. C. (2024). Effective test generation using pre-trained large language models and mutation testing. *Information and Software Technology*, *171*, 107468. https://doi.org/10.1016/j.infsof.2024.107468
+
+Ouédraogo, W. C., Kaboré, A. K., Li, Y., Tian, H., Koyuncu, A., Klein, J., Lo, D., & Bissyandé, T. F. (2024). Prompt engineering in LLMs for automated unit test generation: A large-scale study. *arXiv preprint arXiv:2407.00225*. https://arxiv.org/abs/2407.00225
 
 Papadakis, M., Kintis, M., Zhang, J., Jia, Y., Le Traon, Y., & Harman, M. (2019). Mutation testing advances: An analysis and survey. *Advances in Computers*, *112*, 275–378. https://doi.org/10.1016/bs.adcom.2018.03.015
 
+Vathana, P., Bhatt, P., Patel, R., & Eisty, N. U. (2026). LLM vs. human unit tests: Fault detection on real Python bugs. *arXiv preprint arXiv:2606.08588*. https://arxiv.org/abs/2606.08588
+
 Wang, G., Xu, Q., Briand, L., & Liu, K. (2026). Mutation-guided unit test generation with a large language model. *IEEE Transactions on Software Engineering*, *52*(5), 1657–1671. https://doi.org/10.1109/TSE.2026.3682975
+
+Yang, L., Yang, C., Gao, S., Wang, W., Wang, B., Zhu, Q., Chu, X., Zhou, J., Liang, G., Wang, Q., & Chen, J. (2024). On the evaluation of large language models in unit test generation. *Proceedings of the 39th IEEE/ACM International Conference on Automated Software Engineering (ASE)*, Article 76. https://doi.org/10.1145/3691620.3695529
 
 Yuan, Z., Liu, M., Ding, S., Wang, K., Chen, Y., Peng, X., & Lou, Y. (2024). No more manual tests? Evaluating and improving ChatGPT for unit test generation. *Proceedings of the ACM on Software Engineering*, *1*(FSE), Article 76. https://doi.org/10.1145/3660783 (Originally released as arXiv:2305.04207, 2023.)
 
@@ -229,8 +243,10 @@ Zhao, J., Zhou, S., & Cohen, E. (2026). Do coverage and mutation scores of LLM-g
 1. All ten experiment summaries have been checked against raw coverage and mutation-result artifacts (done for this revision).
 2. E1/E2 mutation and coverage artifacts verified against `research/mutation-results.md` and `research/experiment-2-mutation-results.md`.
 3. Invalid/equivalent mutant exclusions re-audited per experiment; exclusion-rate variation is now reported explicitly (§7).
-4. **[AUTHOR ACTION REQUIRED]** Add exact AI model/version, Cursor version, prompts, and settings.
+4. AI model (Grok 4.5), agent (Cursor 3.15.19), and sampling settings (vendor defaults) added (§4.3); exact per-experiment runbook text not version-pinned (noted as a minor reproducibility limitation, §7).
 5. Repository SHAs and SHA-256 fingerprints verified present and well-formed in underlying artifacts (40-hex-character SHA-1 repository revisions).
-6. Bibliography metadata corrected for Yuan et al., Wang et al. (MutGen), and Zhao et al.; two foundational citations added (Inozemtseva & Holmes 2014; Papadakis et al. 2019). **[AUTHOR ACTION REQUIRED]:** full systematic related-work pass still needed.
+6. Bibliography metadata corrected for Yuan et al., Wang et al. (MutGen), and Zhao et al.; two foundational citations added (Inozemtseva & Holmes 2014; Papadakis et al. 2019); four additional related-work papers added following a targeted (non-systematic) search (Yang et al. 2024; Ouédraogo et al. 2024; Lops et al. 2025; Vathana et al. 2026). A fully systematic (e.g., PRISMA-style) search remains a future opportunity, not a blocking gap.
 7. Figure values verified against Tables 2/3 and the final aggregate computation in §5.
-8. Human/AI test-filter disjointness verified for every scored experiment; contamination-control evolution across experiments is now described explicitly (§4.2) rather than presented as uniform.
+8. Human/AI test-filter disjointness verified for every scored experiment; contamination-control evolution across experiments is now described explicitly (§4.2) rather than presented as uniform, and cross-checked against per-experiment baseline records (§4.2).
+9. Artifact repository published and linked (§4.5): https://github.com/premalmistry/beyond-code-coverage-ai-vs-human-tests
+10. Paired *t*-test and Wilcoxon signed-rank test independently re-verified with SciPy 1.13.1; results match the manual computation exactly (§5).
