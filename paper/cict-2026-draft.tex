@@ -1,0 +1,191 @@
+\documentclass[10pt,conference]{IEEEtran}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{cite}
+
+\title{Beyond Code Coverage: Comparing AI-Generated Tests with Existing Human Test Filters Using Mutation Analysis}
+
+\author{\IEEEauthorblockN{Premal Mistry, Randhir Kumar}
+\IEEEauthorblockA{Independent Researcher}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Code coverage does not directly measure fault-detection capability, yet it remains a common proxy for evaluating LLM-generated unit tests. We present fifteen paired component-level experiments on five open-source Swift repositories: ten exploratory (E1--E10) and five follow-up experiments (E11--E15) under an internally pre-declared neutral selection rule. For each component we compare an existing, researcher-selected Human test filter against a freshly generated, implementation-aware AI suite (Grok~4.5 via Cursor), using llvm-cov structural coverage and mutation testing on a shared frozen mutant set. Across both phases, suites with identical or near-identical coverage can differ in mutation score; in one case the suite with higher \emph{line} coverage has the lower mutation score. We conclude that line, region, and function coverage are insufficient on their own to determine relative mutation-based effectiveness. Mutation selection was not fully blind: a retrospective audit found suite-aware rationale in 29 of 369 planned mutants (7.9\%), concentrated especially in E2 and E11.
+\end{abstract}
+
+\begin{IEEEkeywords}
+large language models, unit testing, mutation testing, code coverage, Swift
+\end{IEEEkeywords}
+
+\section{Introduction}
+Unit testing remains central to detecting regressions. LLMs can now synthesize executable tests from production code, making automated generation practical, but prior work reports compilation failures, incorrect assertions, and weak fault detection alongside promising coverage~\cite{yuan2023}. Structural coverage answers whether code executed; it does not by itself establish assertion quality or fault-detection power.
+
+This study does \textbf{not} estimate whether AI-generated tests are better than human-written tests under equal effort. It compares two concrete artifacts per component: an \textbf{existing Human test filter}---a researcher-selected subset of already-written repository tests---against an \textbf{independently generated AI suite}---written fresh against the current implementation and iteratively repaired until it compiled and passed, without a fixed iteration, token, or time budget. The protocol therefore cannot answer the counterfactual in which humans receive matched fresh effort, or AI generation is one-pass and budget-capped.
+
+We ask two questions. \textbf{RQ1:} How did mutation effectiveness differ between the selected existing Human test filters and independently generated AI suites under this study protocol? \textbf{RQ2 (primary):} Can line, region, and function coverage determine their relative mutation-based effectiveness?
+
+The study has two phases. An \textbf{exploratory phase} (E1--E10) established initial observations, including coverage/mutation dissociation, but later components were partly chosen for their likely ability to distinguish the suites. A \textbf{neutral-selection follow-up} (E11--E15) then selected components by an internally pre-declared eligibility-and-alphabetical-first rule to reduce (not eliminate) that selection discretion. Phases are reported separately throughout.
+
+\textbf{Contributions.} (1)~Paired, component-level comparison of an existing Human filter and an independently generated AI suite on the same production component and frozen mutant set, with leakage controls. (2)~Fifteen case studies across five Swift repositories in exploratory and neutral-selection phases, centered on coverage/mutation dissociation. (3)~A quantified mutation-selection look-ahead audit and an E11 sensitivity check on already-frozen results.
+
+Artifacts (mutation plans, fingerprints, look-ahead audit, sensitivity derivation, candidate inventories) are at \url{https://github.com/premalmistry/beyond-code-coverage-ai-vs-human-tests}.
+
+\section{Related Work}
+Coverage is an imperfect adequacy proxy for human-written suites: once suite size is controlled, correlation with mutation-based effectiveness is only low to moderate~\cite{inozemtseva2014}. Mutation testing more broadly is surveyed by Papadakis et al.~\cite{papadakis2019survey}.
+
+For LLM-generated tests, Yuan et al.~\cite{yuan2023}, Yang et al.~\cite{yang2024ase}, and Ou\'{e}draogo et al.~\cite{ouedraogo2026} report strong sensitivity of compilability, coverage, and related outcomes to model and prompt choice. MuTAP~\cite{mutap2024} and MutGen~\cite{mutgen2026} use surviving mutants as \emph{generation feedback}; we withhold mutation information during generation and use mutation only for post-generation comparative evaluation.
+
+Closest comparisons include Lops et al.~\cite{lops2025agonetest} (aggregate LLM-vs-human Java suites on coverage and mutation), Vathana et al.~\cite{vathana2026} (coverage parity with a large AI-favoring \emph{real-bug} gap on BugsInPy), and Zhao et al.~\cite{zhao2026} (coverage/mutation/size relationships for LLM suites). We add a paired component-level design that makes coverage/mutation dissociation directly observable, including Human-favoring gaps under coverage parity, plus an internally pre-declared neutral follow-up and a quantified look-ahead audit of manually designed mutants. We do not claim to be first to study coverage/mutation limits.
+
+\section{Methodology}
+
+\subsection{Subjects}
+We study fifteen production components from five Swift repositories (Table~\ref{tab:subjects}). Exploratory subjects (E1--E10) required existing human tests, deterministic SwiftPM execution, and isolatable mutation potential; later exploratory components were additionally screened for diversity and for being likely to distinguish the suites. Follow-up subjects (E11--E15) were chosen by the neutral rule below and do not reuse exploratory components.
+
+\begin{table*}[t]
+\centering
+\caption{Study subjects.}
+\label{tab:subjects}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}llp{4.4cm}p{6.2cm}@{}}
+\toprule
+Exp. & Phase & Repository & Component \\
+\midrule
+E1 & Expl. & swift-snapshot-testing & URLRequest \\
+E2 & Expl. & swift-snapshot-testing & Any.swift \\
+E3 & Expl. & swift-collections & Heap \\
+E4 & Expl. & swift-collections & OrderedSet \\
+E5 & Expl. & swift-algorithms & Combinations \\
+E6 & Expl. & swift-algorithms & Partition \\
+E7 & Expl. & swift-parsing & Prefix \\
+E8 & Expl. & swift-parsing & Digits \\
+E9 & Expl. & swift-numerics & SaturatingArithmetic \\
+E10 & Expl. & swift-numerics & Polar \\
+E11 & Follow-up & swift-snapshot-testing & SnapshotTestingConfiguration.swift \\
+E12 & Follow-up & swift-collections & RigidArray+Append.swift \\
+E13 & Follow-up & swift-algorithms & AdjacentPairs.swift \\
+E14 & Follow-up & swift-parsing & OneOfBuilder.swift \\
+E15 & Follow-up & swift-numerics & Complex+AlgebraicField.swift \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Human Filter and AI Suite}
+For each component, a focused \textbf{existing Human test filter}---a researcher-selected subset of already-existing tests, not a newly written suite---was frozen before AI generation. Line, region, and function coverage (llvm-cov) were recorded for this filter alone. Because the filter is a selected subset, reported Human mutation scores describe that filter, not necessarily every repository test that touches the component (e.g., related suites left out of scope in E11; a non-deterministic test excluded in E15 for deterministic baselines).
+
+The \textbf{AI suite} could inspect the production implementation and APIs needed for compilation, but not human tests, fixtures, human coverage reports, mutation plans, or mutation results. Generation used Grok~4.5 through Cursor (version 3.15.19) with vendor-default sampling. Suites were iteratively corrected against compiler errors and their own failures until passing, then frozen and SHA-256-fingerprinted. This loop never consulted human tests or mutation information, but it means the AI artifact is fresher and iteratively self-corrected rather than one-shot. AI suites were larger than the Human filter in nine of ten exploratory experiments and in all five follow-up experiments.
+
+Contamination controls used qualified test filters and, in later experiments, automated logging of executed test names to keep Human and AI executions disjoint. Production checksums were re-verified between mutants; suites were not edited after mutation outcomes were observed. Detailed fingerprints and executed-test inventories are in the artifact repository.
+
+\subsection{Mutation Design and Look-Ahead Disclosure}
+Mutation plans were defined \textbf{only after} both suites were frozen. Mutants represented realistic defect classes (branch inversions, comparison errors, off-by-one boundaries, wrong returns, omitted guards, sign errors, special-case handling). The same mutant was executed against both frozen suites, with production code restored between mutants.
+
+A mutant was killed when a test failed (including crash/timeout kills). Survivors were excluded from the denominator as equivalent only after an explicit code-level argument that no test could distinguish the mutant under the public API; adjudication was by the same person who designed prompts and plans, with no second annotator. Mutation score:
+\begin{equation}
+MS = \frac{\mathrm{killed}}{\mathrm{killed}+\mathrm{survived}}\times 100.
+\end{equation}
+
+\textbf{Look-ahead disclosure.} Freezing suites before mutation design prevents test-side adaptation to known mutants, but does \textbf{not} make mutant \emph{selection} blind: the designer had access to both frozen suites' content and coverage while choosing mutants. A retrospective audit of all 369 planned mutants found explicit suite-content-specific outcome predictions or rationales in \textbf{29 (7.9\%)}, concentrated especially in \textbf{E2} and \textbf{E11}. Mutation-score gaps in affected experiments are therefore conditional on suite-aware mutant sets. The full audit is in the artifact repository.
+
+\subsection{Neutral-Selection Follow-Up Rule}
+For E11--E15 we applied an \textbf{internally pre-declared} neutral selection rule (written and frozen before E11 outcomes; \textbf{not} externally pre-registered): enumerate \texttt{Sources/} \texttt{.swift} files; apply fixed eligibility criteria (existing deterministic human tests; focused observable behavior; mutation-suitable; no network; not previously studied; reasonably isolated); sort alphabetically by path; select the \textbf{first} eligible component; freeze it; accept the result regardless of outcome. The rule reduces researcher discretion in \emph{which component} is studied; it does not randomize the sample or address mutation look-ahead.
+
+\section{Results}
+All statistics characterize the observed fifteen case studies; they are \textbf{not} estimates of a broader population effect. We report descriptive summaries only and do not pool exploratory and follow-up win counts.
+
+\subsection{Mutation Scores (RQ1, Descriptive)}
+\begin{table}[t]
+\centering
+\caption{Mutation scores for E1--E15.}
+\label{tab:ms}
+\small
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}llrrrl@{}}
+\toprule
+Exp. & Phase & Valid & Human MS & AI MS & Higher \\
+\midrule
+E1 & Expl. & 20 & 85.0\% & 95.0\% & AI \\
+E2 & Expl. & 27 & 70.4\% & 85.2\% & AI \\
+E3 & Expl. & 28 & 92.9\% & 85.7\% & Human \\
+E4 & Expl. & 25 & 96.0\% & 88.0\% & Human \\
+E5 & Expl. & 21 & 100.0\% & 100.0\% & Tie \\
+E6 & Expl. & 22 & 90.9\% & 100.0\% & AI \\
+E7 & Expl. & 23 & 91.3\% & 100.0\% & AI \\
+E8 & Expl. & 24 & 91.7\% & 100.0\% & AI \\
+E9 & Expl. & 26 & 96.2\% & 88.5\% & Human \\
+E10 & Expl. & 23 & 73.9\% & 95.7\% & AI \\
+E11 & Follow-up & 24 & 41.7\% & 91.7\% & AI \\
+E12 & Follow-up & 22 & 90.9\% & 95.5\% & AI \\
+E13 & Follow-up & 23 & 91.3\% & 100.0\% & AI \\
+E14 & Follow-up & 22 & 68.2\% & 72.7\% & AI \\
+E15 & Follow-up & 24 & 54.2\% & 66.7\% & AI \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Exploratory (E1--E10):} AI higher in six, Human in three, one tie. Experiment-weighted mean MS was 93.8\% (AI) and 88.8\% (Human); median paired difference (AI$-$Human) $+8.5$ points (range $-8.0$ to $+21.8$). Mutant-weighted pooled scores over 239 valid mutants: 93.31\% AI vs.\ 88.70\% Human ($+4.60$ points).
+
+\textbf{Follow-up (E11--E15):} AI higher in all five. Mean MS 85.3\% (AI) vs.\ 69.2\% (Human); mean paired difference $\mathbf{+16.1}$ points (median $+8.7$; range $+4.5$ to $+50.0$). Pooled over 115 valid mutants: 85.22\% AI vs.\ 68.70\% Human ($+16.52$ points). These descriptive follow-up results must \textbf{not} be read as evidence of universal AI superiority: $n{=}5$, heterogeneous manually constructed mutant sets, and look-ahead exposure (especially E11) qualify every gap.
+
+\textbf{E11 sensitivity.} E11 has both the largest gap ($+50.0$~pp) and the highest look-ahead exposure (12/24 mutants flagged, 50.0\%). Excluding E11 leaves direction unchanged (AI higher in 4/4) but roughly halves magnitude: mean paired difference $\mathbf{+7.58}$~pp (vs.\ $+16.1$) and pooled difference $\mathbf{+7.70}$~pp (vs.\ $+16.52$). Derivation details are in the artifact repository.
+
+\subsection{Coverage--Mutation Dissociation (RQ2)}
+RQ2 is the central finding. Its evidentiary base is E3, E4, E9, E13, E14, and E15---\textbf{not E11}. Table~\ref{tab:rq2} summarizes the cases.
+
+\begin{table*}[t]
+\centering
+\caption{Coverage--mutation dissociation cases.}
+\label{tab:rq2}
+\small
+\begin{tabular}{llp{4.6cm}rrl}
+\toprule
+Exp. & Phase & Coverage relationship & Human MS & AI MS & Look-ahead \\
+\midrule
+E3 & Expl. & Identical line (99.03\%) & 92.9\% & 85.7\% & Cond.\ (3/28) \\
+E4 & Expl. & Identical L/R/F (82.39\%/78.85\%/73.08\%) & 96.0\% & 88.0\% & 0 \\
+E9 & Expl. & 100\% L/R/F both suites & 96.2\% & 88.5\% & 0 \\
+E13 & Follow-up & Identical line (92.95\%) & 91.3\% & 100.0\% & Cond.\ (2/23; entire gap) \\
+E14 & Follow-up & Large line gap ($\sim$32~pp; AI 79.76\% vs.\ Human 47.62\%) & 68.2\% & 72.7\% & 0 \\
+E15 & Follow-up & Inverse \emph{line} ranking (Human 71.19\% vs.\ AI 44.92\%); AI higher region (78.12\% vs.\ 40.62\%) and function (66.67\% vs.\ 25.00\%) & 54.2\% & 66.7\% & 0 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textbf{Exploratory.} In E3, identical primary line coverage coincides with a 7.2-point Human-favoring MS gap; both actual Human-only kills are among flagged mutants, so the \emph{magnitude} is conditioned even though coverage identity is a direct measurement. E4 shows identical line, region, and function coverage with Human 96.0\% vs.\ AI 88.0\% MS and \textbf{zero} flagged mutants. E9 shows 100\% line, region, and function coverage for both suites with Human 96.2\% vs.\ AI 88.5\% and \textbf{zero} flags---the strongest coverage-parity instance. E5 is the counterexample: near-complete identical coverage (99.21\%/96.00\%/94.74\%) with both suites killing all 21 valid mutants, so coverage parity does not imply that an MS gap \emph{must} exist.
+
+\textbf{Follow-up.} E13 recurs identical line coverage (92.95\%) with an 8.7-point AI-favoring gap under neutral selection; that entire gap corresponds to two suite-aware mutants (2/23), so magnitude is conditioned. E14 shows a large AI line-coverage advantage ($\sim$32~pp) but only a 4.5-point MS gap (0~flags)---coverage-gap \emph{magnitude} does not reliably predict MS-gap magnitude. E15 shows an \emph{inverse line-coverage ranking}: Human line coverage is substantially higher (71.19\% vs.\ 44.92\%), yet Human MS is lower (54.2\% vs.\ 66.7\%). Region and function coverage both favor AI (78.12\% vs.\ 40.62\%; 66.67\% vs.\ 25.00\%), consistent with AI's higher MS---so it is \textbf{line} coverage specifically, not every structural metric, that misranks the suites. E15 has \textbf{zero} flagged mutants.
+
+\textbf{Narrow claim.} The central RQ2 pattern does not depend on E11. It recurs when restricted to the four zero-look-ahead experiments (E4, E9, E14, E15); E3 and E13 corroborate qualitatively but their gap magnitudes are conditioned. Across these case studies, \textbf{line, region, and function coverage, as measured by llvm-cov, are insufficient on their own to determine relative mutation-based test effectiveness.}
+
+\subsection{Complementary Kills (Brief)}
+The hypothetical union of both suites' kills exceeded the stronger single suite in 1 of 10 exploratory experiments and 3 of 5 follow-up experiments---additive detection value for these frozen artifacts, not causal synergy or evidence that the suites were executed together.
+
+\section{Threats to Validity}
+\textbf{Effort/freshness asymmetry.} AI suites are freshly generated and iteratively self-corrected; Human filters are historically written and unrevised for this study. AI-favoring mutation gaps may partly or wholly reflect authoring circumstances rather than generating-agent identity.
+
+\textbf{Researcher-selected Human filters.} Scores describe selected filters, not every existing test for a component.
+
+\textbf{Mutation-selection look-ahead.} Designer access to frozen suite content yielded suite-aware rationale in 29/369 (7.9\%) planned mutants, concentrated in E2 and E11; affected gaps are conditional. RQ2's core pattern still holds on zero-exposure experiments.
+
+\textbf{Manually designed mutants / single adjudicator.} Heterogeneous mutant sets; equivalence judgment by the same person who designed prompts and plans; exploratory exclusion rates 0--19\%.
+
+\textbf{Single LLM/tooling.} Grok~4.5 via Cursor 3.15.19 with default sampling; not generalized to other models or agents.
+
+\textbf{Scope.} Fifteen components from five open-source Swift repositories; exploratory selection not representative; the neutral rule reduces but does not eliminate discretion (small $n{=}5$, inherited repositories, researcher-designed eligibility). No claim extends to other languages or test levels.
+
+\textbf{Mutation $\neq$ real faults.} Findings concern seeded syntactic mutants, not historical production defects; we make no claim that higher mutation score implies catching more real bugs.
+
+\section{Conclusion}
+Across these case studies, llvm-cov line, region, and function coverage were insufficient on their own to determine relative mutation-based effectiveness. That conclusion is carried by E3, E4, E9, E13, E14, and E15---including four zero-look-ahead experiments---and does not depend on E11. Human filters and AI suites each killed mutants the other missed in some experiments; observed AI-favoring mutation advantages are conditional on this study's asymmetric authoring regime and, in places, on suite-aware mutant selection. We do \textbf{not} claim general AI superiority, and mutation results do not establish real-bug superiority.
+
+Future work should use blinded or systematically sampled mutant selection, matched-effort Human/AI comparisons, additional languages and models, and real-fault corpora.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references_revised}
+
+\end{document}

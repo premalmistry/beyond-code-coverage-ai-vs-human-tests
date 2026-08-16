@@ -10,3 +10,10 @@
 /swift-algorithms/
 /swift-parsing/
 /swift-numerics/
+
+# LaTeX build artifacts (paper/)
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
